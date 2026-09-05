@@ -1,0 +1,29 @@
+{
+  "expo": {
+    "name": "Unidad Central",
+    "slug": "unidad-central",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "unidadcentral",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
