@@ -5,6 +5,7 @@ import type {
   Negocio,
   DefinicionCapacidad,
   IdentificadorUnico,
+  ConfiguracionNegocio,
 } from '../contratos';
 import type {
   RepositorioCategorias,
@@ -49,6 +50,16 @@ class RepositorioNegociosMemoria implements RepositorioNegocios {
   async guardar(negocio: Negocio): Promise<void> {
     this.elementos.set(negocio.id, negocio);
   }
+
+  async actualizarConfiguracion(id: IdentificadorUnico, configuracion: ConfiguracionNegocio): Promise<void> {
+    const existente = this.elementos.get(id);
+    if (existente) {
+      this.elementos.set(id, {
+        ...existente,
+        configuracion,
+      });
+    }
+  }
 }
 
 class RepositorioCapacidadesMemoria implements RepositorioCapacidades {
@@ -83,102 +94,103 @@ class RepositorioSistemaMemoria implements RepositorioSistema {
   }
 }
 
-describe('Lógica de Central y Principios Contractuales', () => {
-  test('Inicialización de estructura base: segura, explícita e idempotente', async () => {
+describe('Lógica Operativa de Central y Gestión de Negocios', () => {
+  test('Inicialización idempotente: registra 4 categorías, 4 capacidades y 4 negocios base', async () => {
     const repoCategorias = new RepositorioCategoriasMemoria();
     const repoNegocios = new RepositorioNegociosMemoria();
     const repoCapacidades = new RepositorioCapacidadesMemoria();
     const repoSistema = new RepositorioSistemaMemoria();
     const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
 
-    // Estado antes de inicializar
-    const resumenPrevio = await servicio.obtenerResumen();
-    assert.strictEqual(resumenPrevio.exito, true);
-    if (resumenPrevio.exito) {
-      assert.strictEqual(resumenPrevio.datos.inicializado, false);
-      assert.strictEqual(resumenPrevio.datos.totalCategorias, 0);
+    // 1. Primera inicialización
+    const resInicial = await servicio.inicializarEstructuraBase();
+    assert.strictEqual(resInicial.exito, true);
+    if (resInicial.exito) {
+      assert.strictEqual(resInicial.datos.yaInicializado, false);
+      assert.strictEqual(resInicial.datos.categoriasCreadas, 4);
+      assert.strictEqual(resInicial.datos.capacidadesCreadas, 4);
+      assert.strictEqual(resInicial.datos.negociosCreados, 4);
     }
 
-    // Primera inicialización: crea datos base mínimos
-    const resultado1 = await servicio.inicializarEstructuraBase();
-    assert.strictEqual(resultado1.exito, true);
-    if (resultado1.exito) {
-      assert.strictEqual(resultado1.datos.yaInicializado, false);
-      assert.strictEqual(resultado1.datos.categoriasCreadas, 1);
-      assert.strictEqual(resultado1.datos.capacidadesCreadas, 2);
+    // 2. Verificar datos cargados en RTDB
+    const resumen = await servicio.obtenerResumen();
+    assert.strictEqual(resumen.exito, true);
+    if (resumen.exito) {
+      assert.strictEqual(resumen.datos.totalCategorias, 4);
+      assert.strictEqual(resumen.datos.totalNegocios, 4);
+      assert.strictEqual(resumen.datos.totalCapacidades, 4);
+
+      const clavesCategorias = resumen.datos.categorias.map((c) => c.clave);
+      assert.deepStrictEqual(clavesCategorias.sort(), [
+        'hornos_de_pan',
+        'marisquerias',
+        'servicio_a_domicilio',
+        'verdulerias',
+      ]);
+
+      const nombresNegocios = resumen.datos.negocios.map((n) => n.nombreComercial);
+      assert.deepStrictEqual(nombresNegocios.sort(), [
+        'ADIRepart',
+        'Horno de Pan',
+        'Marisquería Puerto Libres',
+        'Verdulería',
+      ]);
     }
 
-    // Comprobación de lectura real en el resumen
-    const resumenPost = await servicio.obtenerResumen();
-    assert.strictEqual(resumenPost.exito, true);
-    if (resumenPost.exito) {
-      assert.strictEqual(resumenPost.datos.inicializado, true);
-      assert.strictEqual(resumenPost.datos.totalCategorias, 1);
-      assert.strictEqual(resumenPost.datos.categorias[0].clave, 'marisquerias');
-      assert.strictEqual(resumenPost.datos.totalCapacidades, 2);
-    }
-
-    // Segunda inicialización: idempotente, no altera nada
-    const resultado2 = await servicio.inicializarEstructuraBase();
-    assert.strictEqual(resultado2.exito, true);
-    if (resultado2.exito) {
-      assert.strictEqual(resultado2.datos.yaInicializado, true);
-      assert.strictEqual(resultado2.datos.categoriasCreadas, 0);
+    // 3. Segunda inicialización (idempotente)
+    const resSegunda = await servicio.inicializarEstructuraBase();
+    assert.strictEqual(resSegunda.exito, true);
+    if (resSegunda.exito) {
+      assert.strictEqual(resSegunda.datos.yaInicializado, true);
+      assert.strictEqual(resSegunda.datos.categoriasCreadas, 0);
+      assert.strictEqual(resSegunda.datos.negociosCreados, 0);
     }
   });
 
-  test('Categoría != Negocio: Un negocio requiere pertenecer a una categoría existente', async () => {
+  test('Permite activar y desactivar capacidades reales por negocio de forma aislada', async () => {
     const repoCategorias = new RepositorioCategoriasMemoria();
     const repoNegocios = new RepositorioNegociosMemoria();
     const repoCapacidades = new RepositorioCapacidadesMemoria();
     const repoSistema = new RepositorioSistemaMemoria();
     const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
 
-    const negocioHuerfano: Negocio = {
-      id: 'neg-01',
-      categoriaId: 'cat-inexistente',
-      nombre: 'Negocio Sin Categoria',
-      nombreComercial: 'Sin Categoria',
-      activo: true,
-      configuracion: {
-        capacidades: {},
-      },
-    };
-
-    const resultadoFalla = await servicio.registrarNegocio(negocioHuerfano);
-    assert.strictEqual(resultadoFalla.exito, false);
-    if (!resultadoFalla.exito) {
-      assert.match(resultadoFalla.error.message, /no existe en Central/);
-    }
-  });
-
-  test('Permite modelar negocios con capacidades diferenciadas según su configuración propia', async () => {
-    const repoCategorias = new RepositorioCategoriasMemoria();
-    const repoNegocios = new RepositorioNegociosMemoria();
-    const repoCapacidades = new RepositorioCapacidadesMemoria();
-    const repoSistema = new RepositorioSistemaMemoria();
-    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
-
-    // Inicializar estructura base
     await servicio.inicializarEstructuraBase();
 
-    // Negocio A: "Puerto Libres" (sin mostrador ni báscula)
-    const puertoLibres: Negocio = {
-      id: 'neg-puerto-libres',
-      categoriaId: 'cat-marisquerias',
-      nombre: 'Puerto Libres S.A.',
-      nombreComercial: 'Puerto Libres',
-      activo: true,
-      configuracion: {
-        capacidades: {
-          mostrador: { activa: false },
-          bascula: { activa: false },
-        },
-      },
-    };
+    // Consultar estado inicial de Marisquería Puerto Libres (mostrador activa por defecto)
+    const negocioInicial = await repoNegocios.obtenerPorId('neg-puerto-libres');
+    assert.strictEqual(negocioInicial?.configuracion.capacidades.mostrador?.activa, true);
 
-    // Negocio B: "El Arrecife" (con mostrador y báscula activas)
-    const elArrecife: Negocio = {
+    // Desactivar mostrador en Marisquería Puerto Libres
+    const resDesactivar = await servicio.alternarCapacidadNegocio('neg-puerto-libres', 'mostrador', false);
+    assert.strictEqual(resDesactivar.exito, true);
+    if (resDesactivar.exito) {
+      assert.strictEqual(resDesactivar.datos.configuracion.capacidades.mostrador.activa, false);
+    }
+
+    // Activar reparto en Marisquería Puerto Libres
+    const resActivarReparto = await servicio.alternarCapacidadNegocio('neg-puerto-libres', 'reparto', true);
+    assert.strictEqual(resActivarReparto.exito, true);
+    if (resActivarReparto.exito) {
+      assert.strictEqual(resActivarReparto.datos.configuracion.capacidades.reparto.activa, true);
+    }
+
+    // Comprobar que ADIRepart no fue alterado (reparto sigue true, mostrador sigue false)
+    const adirepart = await repoNegocios.obtenerPorId('neg-adirepart');
+    assert.strictEqual(adirepart?.configuracion.capacidades.reparto?.activa, true);
+    assert.strictEqual(adirepart?.configuracion.capacidades.mostrador?.activa, false);
+  });
+
+  test('Negocios en la misma categoría pueden mantener configuraciones de capacidades independientes', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    await servicio.inicializarEstructuraBase();
+
+    // Registrar un segundo negocio en la misma categoría 'marisquerias'
+    const segundoNegocioMarisqueria: Negocio = {
       id: 'neg-el-arrecife',
       categoriaId: 'cat-marisquerias',
       nombre: 'El Arrecife Gourmet',
@@ -186,27 +198,50 @@ describe('Lógica de Central y Principios Contractuales', () => {
       activo: true,
       configuracion: {
         capacidades: {
-          mostrador: { activa: true },
-          bascula: { activa: true },
+          mostrador: { activa: false },
+          bascula: { activa: false },
+          reparto: { activa: true },
+          horno: { activa: false },
         },
       },
     };
+    await servicio.registrarNegocio(segundoNegocioMarisqueria);
 
-    const resA = await servicio.registrarNegocio(puertoLibres);
-    const resB = await servicio.registrarNegocio(elArrecife);
+    // Ambos pertenecen a marisquerías pero tienen capacidades diferentes
+    const marisquerias = await servicio.listarNegociosPorCategoria('cat-marisquerias');
+    assert.strictEqual(marisquerias.exito, true);
+    if (marisquerias.exito) {
+      assert.strictEqual(marisquerias.datos.length, 2);
 
-    assert.strictEqual(resA.exito, true);
-    assert.strictEqual(resB.exito, true);
+      const puertoLibres = marisquerias.datos.find((n) => n.id === 'neg-puerto-libres');
+      const arrecife = marisquerias.datos.find((n) => n.id === 'neg-el-arrecife');
 
-    // Consulta de negocios por categoría
-    const listado = await servicio.listarNegociosPorCategoria('cat-marisquerias');
-    assert.strictEqual(listado.exito, true);
-    if (listado.exito) {
-      assert.strictEqual(listado.datos.length, 2);
-      const negocioB = listado.datos.find((n) => n.id === 'neg-el-arrecife');
-      assert.strictEqual(negocioB?.configuracion.capacidades.mostrador.activa, true);
-      const negocioA = listado.datos.find((n) => n.id === 'neg-puerto-libres');
-      assert.strictEqual(negocioA?.configuracion.capacidades.mostrador.activa, false);
+      assert.strictEqual(puertoLibres?.configuracion.capacidades.mostrador?.activa, true);
+      assert.strictEqual(arrecife?.configuracion.capacidades.mostrador?.activa, false);
+      assert.strictEqual(arrecife?.configuracion.capacidades.reparto?.activa, true);
+    }
+  });
+
+  test('Validación de categoría obligatoria: rechaza negocio con categoría inexistente', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    const negocioHuerfano: Negocio = {
+      id: 'neg-invalido',
+      categoriaId: 'cat-no-existe',
+      nombre: 'Negocio Huerfano',
+      nombreComercial: 'Huerfano',
+      activo: true,
+      configuracion: { capacidades: {} },
+    };
+
+    const resultado = await servicio.registrarNegocio(negocioHuerfano);
+    assert.strictEqual(resultado.exito, false);
+    if (!resultado.exito) {
+      assert.match(resultado.error.message, /no existe en Central/);
     }
   });
 });

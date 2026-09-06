@@ -1,5 +1,5 @@
 import { ref, get, set, child } from 'firebase/database';
-import type { Negocio, IdentificadorUnico } from '../../../contratos';
+import type { Negocio, IdentificadorUnico, ConfiguracionNegocio } from '../../../contratos';
 import { obtenerBaseDatosTiempoReal } from '../../plataforma/firebase';
 import { RUTAS_RTDB_CENTRAL } from './rutas-rtdb';
 
@@ -8,6 +8,7 @@ export interface RepositorioNegocios {
   obtenerPorId(id: IdentificadorUnico): Promise<Negocio | null>;
   listarPorCategoria(categoriaId: IdentificadorUnico): Promise<readonly Negocio[]>;
   guardar(negocio: Negocio): Promise<void>;
+  actualizarConfiguracion(id: IdentificadorUnico, configuracion: ConfiguracionNegocio): Promise<void>;
 }
 
 export class RepositorioNegociosRtdb implements RepositorioNegocios {
@@ -45,5 +46,11 @@ export class RepositorioNegociosRtdb implements RepositorioNegocios {
     const db = obtenerBaseDatosTiempoReal();
     const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.negocios), negocio.id);
     await set(referencia, negocio);
+  }
+
+  async actualizarConfiguracion(id: IdentificadorUnico, configuracion: ConfiguracionNegocio): Promise<void> {
+    const db = obtenerBaseDatosTiempoReal();
+    const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.negocios), `${id}/configuracion`);
+    await set(referencia, configuracion);
   }
 }
