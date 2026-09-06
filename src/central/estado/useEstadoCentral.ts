@@ -10,11 +10,13 @@ export interface EstadoCentral {
   readonly guardandoCapacidad: boolean;
   readonly resumen: ResumenCentral | null;
   readonly negocioSeleccionado: Negocio | null;
+  readonly categoriaFiltroId: IdentificadorUnico | null;
   readonly error: string | null;
   readonly mensajeOperacion: string | null;
   readonly recargar: () => Promise<void>;
   readonly inicializar: () => Promise<void>;
   readonly seleccionarNegocio: (id: IdentificadorUnico | null) => void;
+  readonly filtrarPorCategoria: (categoriaId: IdentificadorUnico | null) => void;
   readonly cambiarEstadoCapacidad: (claveCapacidad: ClaveCapacidad, activa: boolean) => Promise<void>;
 }
 
@@ -25,6 +27,7 @@ export function useEstadoCentral(): EstadoCentral {
   const [guardandoCapacidad, setGuardandoCapacidad] = useState<boolean>(false);
   const [resumen, setResumen] = useState<ResumenCentral | null>(null);
   const [negocioSeleccionadoId, setNegocioSeleccionadoId] = useState<IdentificadorUnico | null>(null);
+  const [categoriaFiltroId, setCategoriaFiltroId] = useState<IdentificadorUnico | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mensajeOperacion, setMensajeOperacion] = useState<string | null>(null);
 
@@ -69,6 +72,10 @@ export function useEstadoCentral(): EstadoCentral {
     setMensajeOperacion(null);
   }, []);
 
+  const filtrarPorCategoria = useCallback((categoriaId: IdentificadorUnico | null) => {
+    setCategoriaFiltroId(categoriaId);
+  }, []);
+
   const negocioSeleccionado = useMemo(() => {
     if (!resumen || !negocioSeleccionadoId) {
       return null;
@@ -95,7 +102,6 @@ export function useEstadoCentral(): EstadoCentral {
         setMensajeOperacion(
           `Capacidad "${claveCapacidad}" ${activa ? 'activada' : 'desactivada'} para ${resultado.datos.nombreComercial}.`
         );
-        // Actualizar el negocio en el resumen local para respuesta instantánea
         setResumen((prev) => {
           if (!prev) return null;
           const negociosActualizados = prev.negocios.map((n) =>
@@ -134,11 +140,13 @@ export function useEstadoCentral(): EstadoCentral {
     guardandoCapacidad,
     resumen,
     negocioSeleccionado,
+    categoriaFiltroId,
     error,
     mensajeOperacion,
     recargar,
     inicializar,
     seleccionarNegocio,
+    filtrarPorCategoria,
     cambiarEstadoCapacidad,
   };
 }
