@@ -10,12 +10,11 @@ import type {
   RepositorioCategorias,
   RepositorioNegocios,
   RepositorioCapacidades,
+  RepositorioSistema,
+  EstadoEstructuraSistema,
 } from '../src/central/persistencia';
 import { ServicioCentral } from '../src/central/logica/servicio-central';
 
-/**
- * Repositorios en memoria para pruebas unitarias de lógica central.
- */
 class RepositorioCategoriasMemoria implements RepositorioCategorias {
   private elementos = new Map<IdentificadorUnico, Categoria>();
 
@@ -68,12 +67,72 @@ class RepositorioCapacidadesMemoria implements RepositorioCapacidades {
   }
 }
 
+class RepositorioSistemaMemoria implements RepositorioSistema {
+  private estado: EstadoEstructuraSistema | null = null;
+
+  async obtenerEstado(): Promise<EstadoEstructuraSistema | null> {
+    return this.estado;
+  }
+
+  async marcarInicializado(version = 1): Promise<void> {
+    this.estado = {
+      inicializado: true,
+      version,
+      inicializadoEn: Date.now(),
+    };
+  }
+}
+
 describe('Lógica de Central y Principios Contractuales', () => {
+  test('Inicialización de estructura base: segura, explícita e idempotente', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    // Estado antes de inicializar
+    const resumenPrevio = await servicio.obtenerResumen();
+    assert.strictEqual(resumenPrevio.exito, true);
+    if (resumenPrevio.exito) {
+      assert.strictEqual(resumenPrevio.datos.inicializado, false);
+      assert.strictEqual(resumenPrevio.datos.totalCategorias, 0);
+    }
+
+    // Primera inicialización: crea datos base mínimos
+    const resultado1 = await servicio.inicializarEstructuraBase();
+    assert.strictEqual(resultado1.exito, true);
+    if (resultado1.exito) {
+      assert.strictEqual(resultado1.datos.yaInicializado, false);
+      assert.strictEqual(resultado1.datos.categoriasCreadas, 1);
+      assert.strictEqual(resultado1.datos.capacidadesCreadas, 2);
+    }
+
+    // Comprobación de lectura real en el resumen
+    const resumenPost = await servicio.obtenerResumen();
+    assert.strictEqual(resumenPost.exito, true);
+    if (resumenPost.exito) {
+      assert.strictEqual(resumenPost.datos.inicializado, true);
+      assert.strictEqual(resumenPost.datos.totalCategorias, 1);
+      assert.strictEqual(resumenPost.datos.categorias[0].clave, 'marisquerias');
+      assert.strictEqual(resumenPost.datos.totalCapacidades, 2);
+    }
+
+    // Segunda inicialización: idempotente, no altera nada
+    const resultado2 = await servicio.inicializarEstructuraBase();
+    assert.strictEqual(resultado2.exito, true);
+    if (resultado2.exito) {
+      assert.strictEqual(resultado2.datos.yaInicializado, true);
+      assert.strictEqual(resultado2.datos.categoriasCreadas, 0);
+    }
+  });
+
   test('Categoría != Negocio: Un negocio requiere pertenecer a una categoría existente', async () => {
     const repoCategorias = new RepositorioCategoriasMemoria();
     const repoNegocios = new RepositorioNegociosMemoria();
     const repoCapacidades = new RepositorioCapacidadesMemoria();
-    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades);
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
 
     const negocioHuerfano: Negocio = {
       id: 'neg-01',
@@ -93,38 +152,17 @@ describe('Lógica de Central y Principios Contractuales', () => {
     }
   });
 
-  test('Permite modelar negocios de una misma categoría con capacidades diferenciadas', async () => {
+  test('Permite modelar negocios con capacidades diferenciadas según su configuración propia', async () => {
     const repoCategorias = new RepositorioCategoriasMemoria();
     const repoNegocios = new RepositorioNegociosMemoria();
     const repoCapacidades = new RepositorioCapacidadesMemoria();
-    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades);
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
 
-    // 1. Registrar categoría
-    const categoriaMarisquerias: Categoria = {
-      id: 'cat-marisquerias',
-      clave: 'marisquerias',
-      nombre: 'Marisquerías',
-      descripcion: 'Locales y puntos de venta de productos marinos',
-      activa: true,
-      capacidadesDisponibles: ['mostrador', 'bascula', 'pedidos_domicilio'],
-    };
-    await servicio.registrarCategoria(categoriaMarisquerias);
+    // Inicializar estructura base
+    await servicio.inicializarEstructuraBase();
 
-    // 2. Registrar capacidades técnicas posibles
-    await servicio.registrarCapacidad({
-      id: 'cap-mostrador',
-      clave: 'mostrador',
-      nombre: 'Mostrador',
-      descripcion: 'Atención directa en barra/mostrador',
-    });
-    await servicio.registrarCapacidad({
-      id: 'cap-bascula',
-      clave: 'bascula',
-      nombre: 'Básculas de pesaje',
-      descripcion: 'Integración y lectura de básculas para venta por peso',
-    });
-
-    // 3. Negocio A: "Puerto Libres" (sin mostrador)
+    // Negocio A: "Puerto Libres" (sin mostrador ni báscula)
     const puertoLibres: Negocio = {
       id: 'neg-puerto-libres',
       categoriaId: 'cat-marisquerias',
@@ -139,7 +177,7 @@ describe('Lógica de Central y Principios Contractuales', () => {
       },
     };
 
-    // 4. Negocio B: "El Arrecife" (con mostrador y báscula)
+    // Negocio B: "El Arrecife" (con mostrador y báscula activas)
     const elArrecife: Negocio = {
       id: 'neg-el-arrecife',
       categoriaId: 'cat-marisquerias',
@@ -148,8 +186,8 @@ describe('Lógica de Central y Principios Contractuales', () => {
       activo: true,
       configuracion: {
         capacidades: {
-          mostrador: { activa: true, opciones: { cajasActivas: 2 } },
-          bascula: { activa: true, opciones: { modelo: 'Torrey' } },
+          mostrador: { activa: true },
+          bascula: { activa: true },
         },
       },
     };
@@ -160,7 +198,7 @@ describe('Lógica de Central y Principios Contractuales', () => {
     assert.strictEqual(resA.exito, true);
     assert.strictEqual(resB.exito, true);
 
-    // Verificar consulta por categoría
+    // Consulta de negocios por categoría
     const listado = await servicio.listarNegociosPorCategoria('cat-marisquerias');
     assert.strictEqual(listado.exito, true);
     if (listado.exito) {
@@ -169,16 +207,6 @@ describe('Lógica de Central y Principios Contractuales', () => {
       assert.strictEqual(negocioB?.configuracion.capacidades.mostrador.activa, true);
       const negocioA = listado.datos.find((n) => n.id === 'neg-puerto-libres');
       assert.strictEqual(negocioA?.configuracion.capacidades.mostrador.activa, false);
-    }
-
-    // Verificar resumen de Central
-    const resumen = await servicio.obtenerResumen();
-    assert.strictEqual(resumen.exito, true);
-    if (resumen.exito) {
-      assert.strictEqual(resumen.datos.totalCategorias, 1);
-      assert.strictEqual(resumen.datos.totalNegocios, 2);
-      assert.strictEqual(resumen.datos.negociosActivos, 2);
-      assert.strictEqual(resumen.datos.totalCapacidades, 2);
     }
   });
 });

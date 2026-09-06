@@ -1,18 +1,16 @@
 import type { ClaveCapacidad } from './capacidad';
 
 /**
- * Estado y ajuste específico de una capacidad particular en un negocio.
+ * Estado propio de una capacidad en un negocio específico.
  */
-export interface AjusteCapacidadNegocio {
+export interface EstadoCapacidadNegocio {
   readonly activa: boolean;
-  readonly opciones?: Readonly<Record<string, unknown>>;
 }
 
 /**
  * Configuración propia e individual de un negocio dentro de la Unidad Central.
- * Modela las capacidades activas y los parámetros operativos propios.
+ * Modela las capacidades activas que determinan la operación concreta del negocio.
  */
 export interface ConfiguracionNegocio {
-  readonly capacidades: Readonly<Record<ClaveCapacidad, AjusteCapacidadNegocio>>;
-  readonly parametros?: Readonly<Record<string, unknown>>;
+  readonly capacidades: Readonly<Record<ClaveCapacidad, EstadoCapacidadNegocio>>;
 }

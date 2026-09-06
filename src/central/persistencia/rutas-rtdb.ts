@@ -4,6 +4,7 @@
  */
 export const RUTAS_RTDB_CENTRAL = {
   raiz: 'central',
+  sistema: 'central/sistema',
   categorias: 'central/categorias',
   negocios: 'central/negocios',
   capacidades: 'central/capacidades',

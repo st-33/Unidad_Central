@@ -8,14 +8,25 @@ interface PropsPanelEstadoCentral {
 }
 
 export const PanelEstadoCentral: React.FC<PropsPanelEstadoCentral> = ({ estado }) => {
-  const { conectadoRtdb, cargando, resumen, error, recargar } = estado;
+  const {
+    conectadoRtdb,
+    cargando,
+    ejecutandoInicializacion,
+    resumen,
+    error,
+    mensajeOperacion,
+    recargar,
+    inicializar,
+  } = estado;
+
+  const estaInicializado = Boolean(resumen?.inicializado);
 
   return (
     <View style={estilos.contenedor}>
       <View style={estilos.seccionCabecera}>
         <Text style={estilos.etiquetaSistema}>UNIDAD CENTRAL</Text>
         <Text style={estilos.tituloModulo}>CENTRAL</Text>
-        <Text style={estilos.subtitulo}>Nodo de supervisión y catálogo de la red</Text>
+        <Text style={estilos.subtitulo}>Supervisión de catálogo e infraestructura</Text>
       </View>
 
       <View style={estilos.bloqueTecnico}>
@@ -27,12 +38,12 @@ export const PanelEstadoCentral: React.FC<PropsPanelEstadoCentral> = ({ estado }
         </View>
 
         <View style={estilos.filaEstado}>
-          <Text style={estilos.etiquetaCampo}>Aplicación registrada:</Text>
+          <Text style={estilos.etiquetaCampo}>Aplicación web:</Text>
           <Text style={estilos.valorCampo}>{CONFIGURACION_FIREBASE_CENTRAL.nombreAplicacion}</Text>
         </View>
 
         <View style={estilos.filaEstado}>
-          <Text style={estilos.etiquetaCampo}>Estado RTDB:</Text>
+          <Text style={estilos.etiquetaCampo}>Enlace RTDB:</Text>
           <View style={estilos.indicadorConexion}>
             <View
               style={[
@@ -45,10 +56,22 @@ export const PanelEstadoCentral: React.FC<PropsPanelEstadoCentral> = ({ estado }
             </Text>
           </View>
         </View>
+
+        <View style={estilos.filaEstado}>
+          <Text style={estilos.etiquetaCampo}>Estructura Central:</Text>
+          <Text
+            style={[
+              estilos.valorCampo,
+              { color: estaInicializado ? '#047857' : '#b45309' },
+            ]}
+          >
+            {estaInicializado ? 'Inicializada' : 'Sin inicializar'}
+          </Text>
+        </View>
       </View>
 
       <View style={estilos.bloqueTecnico}>
-        <Text style={estilos.tituloSeccion}>REGISTROS EN CENTRAL</Text>
+        <Text style={estilos.tituloSeccion}>DATOS REALES EN RTDB</Text>
 
         {cargando ? (
           <ActivityIndicator size="small" color="#2563eb" style={estilos.cargador} />
@@ -56,38 +79,81 @@ export const PanelEstadoCentral: React.FC<PropsPanelEstadoCentral> = ({ estado }
           <View style={estilos.cajaAlerta}>
             <Text style={estilos.textoAlerta}>Aviso técnico: {error}</Text>
           </View>
+        ) : !estaInicializado ? (
+          <View style={estilos.cajaInfo}>
+            <Text style={estilos.textoInfo}>
+              La estructura base de Central aún no existe en la RTDB. Pulsa el botón inferior para
+              crear la estructura base inicial de forma segura e idempotente.
+            </Text>
+          </View>
         ) : (
           <View>
             <View style={estilos.filaEstado}>
               <Text style={estilos.etiquetaCampo}>Categorías registradas:</Text>
               <Text style={estilos.valorCampo}>{resumen?.totalCategorias ?? 0}</Text>
             </View>
-
-            <View style={estilos.filaEstado}>
-              <Text style={estilos.etiquetaCampo}>Negocios registrados:</Text>
-              <Text style={estilos.valorCampo}>
-                {resumen?.totalNegocios ?? 0} ({resumen?.negociosActivos ?? 0} activos)
-              </Text>
-            </View>
+            {resumen?.categorias && resumen.categorias.length > 0 && (
+              <View style={estilos.filaDetalle}>
+                <Text style={estilos.textoDetalle}>
+                  {resumen.categorias.map((c) => c.nombre).join(', ')}
+                </Text>
+              </View>
+            )}
 
             <View style={estilos.filaEstado}>
               <Text style={estilos.etiquetaCampo}>Capacidades definidas:</Text>
               <Text style={estilos.valorCampo}>{resumen?.totalCapacidades ?? 0}</Text>
             </View>
+            {resumen?.capacidades && resumen.capacidades.length > 0 && (
+              <View style={estilos.filaDetalle}>
+                <Text style={estilos.textoDetalle}>
+                  {resumen.capacidades.map((c) => c.nombre).join(', ')}
+                </Text>
+              </View>
+            )}
+
+            <View style={estilos.filaEstado}>
+              <Text style={estilos.etiquetaCampo}>Negocios registrados:</Text>
+              <Text style={estilos.valorCampo}>{resumen?.totalNegocios ?? 0}</Text>
+            </View>
           </View>
         )}
       </View>
 
-      <TouchableOpacity
-        style={estilos.botonRecargar}
-        onPress={recargar}
-        disabled={cargando}
-        activeOpacity={0.8}
-      >
-        <Text style={estilos.textoBotonRecargar}>
-          {cargando ? 'Consultando...' : 'Revalidar estado'}
-        </Text>
-      </TouchableOpacity>
+      {mensajeOperacion && (
+        <View style={estilos.cajaExito}>
+          <Text style={estilos.textoExito}>{mensajeOperacion}</Text>
+        </View>
+      )}
+
+      <View style={estilos.contenedorBotones}>
+        {!estaInicializado && (
+          <TouchableOpacity
+            style={[
+              estilos.botonPrimario,
+              (ejecutandoInicializacion || cargando) && estilos.botonDeshabilitado,
+            ]}
+            onPress={inicializar}
+            disabled={ejecutandoInicializacion || cargando}
+            activeOpacity={0.8}
+          >
+            <Text style={estilos.textoBotonPrimario}>
+              {ejecutandoInicializacion ? 'Inicializando...' : 'Inicializar estructura base'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity
+          style={estilos.botonSecundario}
+          onPress={recargar}
+          disabled={cargando || ejecutandoInicializacion}
+          activeOpacity={0.8}
+        >
+          <Text style={estilos.textoBotonSecundario}>
+            {cargando ? 'Consultando RTDB...' : 'Revalidar lectura RTDB'}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 };
@@ -148,6 +214,15 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 6,
   },
+  filaDetalle: {
+    paddingVertical: 2,
+    paddingBottom: 6,
+  },
+  textoDetalle: {
+    fontSize: 12,
+    color: '#6b7280',
+    fontStyle: 'italic',
+  },
   etiquetaCampo: {
     fontSize: 13,
     color: '#6b7280',
@@ -181,14 +256,53 @@ const estilos = StyleSheet.create({
     color: '#92400e',
     fontSize: 12,
   },
-  botonRecargar: {
+  cajaInfo: {
+    backgroundColor: '#f3f4f6',
+    padding: 10,
+    borderRadius: 4,
+    marginTop: 4,
+  },
+  textoInfo: {
+    color: '#4b5563',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  cajaExito: {
+    backgroundColor: '#d1fae5',
+    padding: 10,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  textoExito: {
+    color: '#065f46',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  contenedorBotones: {
+    gap: 10,
+    marginTop: 8,
+  },
+  botonPrimario: {
+    backgroundColor: '#047857',
+    paddingVertical: 12,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  botonDeshabilitado: {
+    opacity: 0.6,
+  },
+  textoBotonPrimario: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  botonSecundario: {
     backgroundColor: '#111827',
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: 'center',
-    marginTop: 8,
   },
-  textoBotonRecargar: {
+  textoBotonSecundario: {
     color: '#ffffff',
     fontSize: 14,
     fontWeight: '600',

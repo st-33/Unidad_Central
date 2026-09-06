@@ -11,5 +11,4 @@ export interface Categoria extends EntidadIdentificable {
   readonly nombre: string;
   readonly descripcion: string;
   readonly activa: boolean;
-  readonly capacidadesDisponibles?: readonly string[];
 }

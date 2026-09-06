@@ -1,4 +1,4 @@
-import { ref, get, set, child, query, orderByChild, equalTo } from 'firebase/database';
+import { ref, get, set, child } from 'firebase/database';
 import type { Negocio, IdentificadorUnico } from '../../../contratos';
 import { obtenerBaseDatosTiempoReal } from '../../plataforma/firebase';
 import { RUTAS_RTDB_CENTRAL } from './rutas-rtdb';
@@ -37,17 +37,8 @@ export class RepositorioNegociosRtdb implements RepositorioNegocios {
   }
 
   async listarPorCategoria(categoriaId: IdentificadorUnico): Promise<readonly Negocio[]> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = ref(db, RUTAS_RTDB_CENTRAL.negocios);
-    const consulta = query(referencia, orderByChild('categoriaId'), equalTo(categoriaId));
-    const instantanea = await get(consulta);
-
-    if (!instantanea.exists()) {
-      return [];
-    }
-
-    const valor = instantanea.val();
-    return Object.values(valor) as Negocio[];
+    const todos = await this.listar();
+    return todos.filter((negocio) => negocio.categoriaId === categoriaId);
   }
 
   async guardar(negocio: Negocio): Promise<void> {

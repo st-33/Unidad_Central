@@ -14,5 +14,4 @@ export interface DefinicionCapacidad extends EntidadIdentificable {
   readonly clave: ClaveCapacidad;
   readonly nombre: string;
   readonly descripcion: string;
-  readonly obligatoriaParaCategorias?: readonly string[];
 }
