@@ -8,4 +8,6 @@ export const RUTAS_RTDB_CENTRAL = {
   categorias: 'central/categorias',
   negocios: 'central/negocios',
   capacidades: 'central/capacidades',
+  alias: 'central/alias',
+  comercial: 'central/comercial',
 } as const;

@@ -39,7 +39,7 @@ export class RepositorioNegociosRtdb implements RepositorioNegocios {
 
   async listarPorCategoria(categoriaId: IdentificadorUnico): Promise<readonly Negocio[]> {
     const todos = await this.listar();
-    return todos.filter((negocio) => negocio.categoriaId === categoriaId);
+    return todos.filter((negocio) => negocio.categoria_id === categoriaId);
   }
 
   async guardar(negocio: Negocio): Promise<void> {

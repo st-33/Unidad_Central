@@ -1,15 +1,22 @@
 import type { ClaveCapacidad } from './capacidad';
 
 /**
- * Estado propio de una capacidad en un negocio específico.
+ * Estado concreto de una capacidad en un negocio específico.
+ * 
+ * IMPORTANTE: Esta estructura NO define QUÉ capacidades existen,
+ * solo el estado (activa/inactiva) de las capacidades que el negocio puede usar.
  */
 export interface EstadoCapacidadNegocio {
   readonly activa: boolean;
 }
 
 /**
- * Configuración propia e individual de un negocio dentro de la Unidad Central.
- * Modela las capacidades activas que determinan la operación concreta del negocio.
+ * Configuración operativa individual de un negocio dentro de la Unidad Central.
+ * 
+ * JERARQUÍA CANÓNICA:
+ * - El negocio SOLO puede tener capacidades que su categoría permita.
+ * - Este registro almacena el estado (activa/inactiva) de cada capacidad permitida.
+ * - NO debe contener capacidades que la categoría del negocio no permite.
  */
 export interface ConfiguracionNegocio {
   readonly capacidades: Readonly<Record<ClaveCapacidad, EstadoCapacidadNegocio>>;

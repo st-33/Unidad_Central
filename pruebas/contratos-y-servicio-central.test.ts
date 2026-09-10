@@ -44,7 +44,7 @@ class RepositorioNegociosMemoria implements RepositorioNegocios {
   }
 
   async listarPorCategoria(categoriaId: IdentificadorUnico): Promise<readonly Negocio[]> {
-    return Array.from(this.elementos.values()).filter((n) => n.categoriaId === categoriaId);
+    return Array.from(this.elementos.values()).filter((n) => n.categoria_id === categoriaId);
   }
 
   async guardar(negocio: Negocio): Promise<void> {
@@ -128,7 +128,7 @@ describe('Lógica Operativa de Central y Gestión de Negocios', () => {
         'verdulerias',
       ]);
 
-      const nombresNegocios = resumen.datos.negocios.map((n) => n.nombreComercial);
+      const nombresNegocios = resumen.datos.negocios.map((n) => n.nombre_comercial);
       assert.deepStrictEqual(nombresNegocios.sort(), [
         'ADIRepart',
         'Horno de Pan',
@@ -174,10 +174,11 @@ describe('Lógica Operativa de Central y Gestión de Negocios', () => {
       assert.strictEqual(resActivarReparto.datos.configuracion.capacidades.reparto.activa, true);
     }
 
-    // Comprobar que ADIRepart no fue alterado (reparto sigue true, mostrador sigue false)
+    // Comprobar que ADIRepart no fue alterado (reparto sigue true)
+    // ADIRepart solo tiene 'reparto' en su configuración porque es la única capacidad permitida por su categoría
     const adirepart = await repoNegocios.obtenerPorId('neg-adirepart');
     assert.strictEqual(adirepart?.configuracion.capacidades.reparto?.activa, true);
-    assert.strictEqual(adirepart?.configuracion.capacidades.mostrador?.activa, false);
+    assert.strictEqual(adirepart?.configuracion.capacidades.mostrador, undefined);
   });
 
   test('Negocios en la misma categoría pueden mantener configuraciones de capacidades independientes', async () => {
@@ -190,18 +191,19 @@ describe('Lógica Operativa de Central y Gestión de Negocios', () => {
     await servicio.inicializarEstructuraBase();
 
     // Registrar un segundo negocio en la misma categoría 'marisquerias'
+    // Solo incluimos capacidades permitidas por la categoría (mostrador, bascula, reparto)
     const segundoNegocioMarisqueria: Negocio = {
       id: 'neg-el-arrecife',
-      categoriaId: 'cat-marisquerias',
+      negocio_id: 'neg-el-arrecife',
+      categoria_id: 'cat-marisquerias',
       nombre: 'El Arrecife Gourmet',
-      nombreComercial: 'El Arrecife',
+      nombre_comercial: 'El Arrecife',
       activo: true,
       configuracion: {
         capacidades: {
           mostrador: { activa: false },
           bascula: { activa: false },
           reparto: { activa: true },
-          horno: { activa: false },
         },
       },
     };
@@ -231,9 +233,10 @@ describe('Lógica Operativa de Central y Gestión de Negocios', () => {
 
     const negocioHuerfano: Negocio = {
       id: 'neg-invalido',
-      categoriaId: 'cat-no-existe',
+      negocio_id: 'neg-invalido',
+      categoria_id: 'cat-no-existe',
       nombre: 'Negocio Huerfano',
-      nombreComercial: 'Huerfano',
+      nombre_comercial: 'Huerfano',
       activo: true,
       configuracion: { capacidades: {} },
     };
@@ -242,6 +245,108 @@ describe('Lógica Operativa de Central y Gestión de Negocios', () => {
     assert.strictEqual(resultado.exito, false);
     if (!resultado.exito) {
       assert.match(resultado.error.message, /no existe en Central/);
+    }
+  });
+
+  test('JERARQUÍA: No permite activar capacidad que la categoría no permite', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    await servicio.inicializarEstructuraBase();
+
+    // Intentar activar "horno" en ADIRepart (Servicio a Domicilio solo permite "reparto")
+    const resultado = await servicio.alternarCapacidadNegocio('neg-adirepart', 'horno', true);
+    
+    assert.strictEqual(resultado.exito, false);
+    if (!resultado.exito) {
+      assert.match(resultado.error.message, /no permite la capacidad/);
+    }
+  });
+
+  test('JERARQUÍA: Categorías definen capacidades permitidas correctamente', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    await servicio.inicializarEstructuraBase();
+
+    const resumen = await servicio.obtenerResumen();
+    assert.strictEqual(resumen.exito, true);
+    
+    if (resumen.exito) {
+      const marisquerias = resumen.datos.categorias.find((c) => c.clave === 'marisquerias');
+      const servicioADomicilio = resumen.datos.categorias.find((c) => c.clave === 'servicio_a_domicilio');
+      
+      assert.ok(marisquerias);
+      assert.ok(servicioADomicilio);
+      
+      // Marisquerías permite mostrador, bascula, reparto
+      assert.deepStrictEqual([...marisquerias.capacidades_permitidas].sort(), ['bascula', 'mostrador', 'reparto']);
+      
+      // Servicio a Domicilio solo permite reparto
+      assert.deepStrictEqual(servicioADomicilio.capacidades_permitidas, ['reparto']);
+    }
+  });
+
+  test('EXPORTACIÓN: Genera configuración para consumo externo correctamente', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    await servicio.inicializarEstructuraBase();
+
+    const resultado = await servicio.exportarConfiguracionNegocio('neg-puerto-libres');
+    
+    assert.strictEqual(resultado.exito, true);
+    if (resultado.exito) {
+      const config = resultado.datos;
+      
+      assert.strictEqual(config.idNegocio, 'neg-puerto-libres');
+      assert.strictEqual(config.nombreComercial, 'Marisquería Puerto Libres');
+      assert.strictEqual(config.categoriaId, 'cat-marisquerias');
+      assert.strictEqual(config.categoriaNombre, 'Marisquerías');
+      assert.strictEqual(config.categoriaClave, 'marisquerias');
+      assert.strictEqual(config.activo, true);
+      
+      // Solo incluye capacidades ACTIVAS (mostrador y bascula por defecto)
+      assert.deepStrictEqual([...config.capacidadesActivas].sort(), ['bascula', 'mostrador']);
+    }
+  });
+
+  test('EXPORTACIÓN: Catálogo de capacidades excluye capacidades no disponibles', async () => {
+    const repoCategorias = new RepositorioCategoriasMemoria();
+    const repoNegocios = new RepositorioNegociosMemoria();
+    const repoCapacidades = new RepositorioCapacidadesMemoria();
+    const repoSistema = new RepositorioSistemaMemoria();
+    const servicio = new ServicioCentral(repoCategorias, repoNegocios, repoCapacidades, repoSistema);
+
+    await servicio.inicializarEstructuraBase();
+
+    // Agregar una capacidad en desuso
+    await repoCapacidades.guardar({
+      id: 'cap-obsoleta',
+      clave: 'obsoleta',
+      nombre: 'Capacidad Obsoleta',
+      descripcion: 'Ya no se usa',
+      disponible: false,
+    });
+
+    const resultado = await servicio.exportarCatalogoCapacidades();
+    
+    assert.strictEqual(resultado.exito, true);
+    if (resultado.exito) {
+      const claves = resultado.datos.map((c) => c.clave);
+      
+      // Debe incluir las 4 capacidades base (todas disponible: true)
+      assert.strictEqual(resultado.datos.length, 4);
+      assert.ok(!claves.includes('obsoleta'));
     }
   });
 });

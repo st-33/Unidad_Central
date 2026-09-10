@@ -42,7 +42,7 @@ export const PantallaCentral: React.FC = () => {
     if (!categoriaFiltroId) {
       return resumen.negocios;
     }
-    return resumen.negocios.filter((n) => n.categoriaId === categoriaFiltroId);
+    return resumen.negocios.filter((n) => n.categoria_id === categoriaFiltroId);
   }, [resumen?.negocios, categoriaFiltroId]);
 
   return (
@@ -94,6 +94,10 @@ export const PantallaCentral: React.FC = () => {
                 categorias={resumen?.categorias ?? []}
                 negocioSeleccionadoId={negocioSeleccionado?.id ?? null}
                 onSeleccionarNegocio={seleccionarNegocio}
+                onCrearNuevoNegocio={() => {
+                  // TODO: Implementar creación de nuevo negocio
+                  console.log('Crear nuevo negocio');
+                }}
               />
             </View>
 

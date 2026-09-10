@@ -1,6 +1,5 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { CONFIGURACION_FIREBASE_CENTRAL } from '../../../configuracion/firebase';
 
 interface PropsCabeceraCentral {
   readonly conectadoRtdb: boolean;
@@ -23,16 +22,8 @@ export const CabeceraCentral: React.FC<PropsCabeceraCentral> = ({
     <View style={estilos.contenedor}>
       <View style={estilos.filaPrincipal}>
         <View style={estilos.bloqueMarca}>
-          <View style={estilos.filaEtiqueta}>
-            <Text style={estilos.marcaPrincipal}>UNIDAD CENTRAL</Text>
-            <View style={estilos.badgeSistema}>
-              <Text style={estilos.textoBadgeSistema}>MI NEGOCIO UN CLICK</Text>
-            </View>
-          </View>
-          <Text style={estilos.tituloModulo}>Central Operativa</Text>
-          <Text style={estilos.subtituloModulo}>
-            Supervisión del catálogo maestro, categorías y capacidades de la red
-          </Text>
+          <Text style={estilos.marcaPrincipal}>UNIDAD CENTRAL</Text>
+          <Text style={estilos.tituloModulo}>Administrador de Negocios</Text>
         </View>
 
         <View style={estilos.bloqueAcciones}>
@@ -44,7 +35,7 @@ export const CabeceraCentral: React.FC<PropsCabeceraCentral> = ({
               ]}
             />
             <Text style={estilos.textoConexion}>
-              {conectadoRtdb ? 'RTDB En línea' : 'Verificando enlace'}
+              {conectadoRtdb ? 'En línea' : 'Conectando...'}
             </Text>
           </View>
 
@@ -62,47 +53,12 @@ export const CabeceraCentral: React.FC<PropsCabeceraCentral> = ({
                 {ejecutandoInicializacion ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={estilos.textoBotonInicializar}>Inicializar Red</Text>
+                  <Text style={estilos.textoBotonInicializar}>Inicializar</Text>
                 )}
               </TouchableOpacity>
             )}
-
-            <TouchableOpacity
-              style={estilos.botonRecargar}
-              onPress={onRecargar}
-              disabled={cargando}
-              activeOpacity={0.8}
-            >
-              {cargando ? (
-                <ActivityIndicator size="small" color="#374151" />
-              ) : (
-                <Text style={estilos.textoBotonRecargar}>Actualizar</Text>
-              )}
-            </TouchableOpacity>
           </View>
         </View>
-      </View>
-
-      <View style={estilos.barraMeta}>
-        <Text style={estilos.textoMeta}>
-          Proyecto: <Text style={estilos.valorMeta}>{CONFIGURACION_FIREBASE_CENTRAL.idProyecto}</Text>
-        </Text>
-        <Text style={estilos.separadorMeta}>•</Text>
-        <Text style={estilos.textoMeta}>
-          App Web: <Text style={estilos.valorMeta}>{CONFIGURACION_FIREBASE_CENTRAL.nombreAplicacion}</Text>
-        </Text>
-        <Text style={estilos.separadorMeta}>•</Text>
-        <Text style={estilos.textoMeta}>
-          Estructura:{' '}
-          <Text
-            style={[
-              estilos.valorMeta,
-              { color: estaInicializado ? '#059669' : '#d97706', fontWeight: '700' },
-            ]}
-          >
-            {estaInicializado ? 'Inicializada (v2)' : 'Pendiente de inicio'}
-          </Text>
-        </Text>
       </View>
     </View>
   );
@@ -123,7 +79,7 @@ const estilos = StyleSheet.create({
   filaPrincipal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     flexWrap: 'wrap',
     gap: 16,
   },
@@ -131,42 +87,19 @@ const estilos = StyleSheet.create({
     flex: 1,
     minWidth: 260,
   },
-  filaEtiqueta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 4,
-  },
   marcaPrincipal: {
     fontSize: 12,
     fontWeight: '800',
     color: '#9ca3af',
     letterSpacing: 2,
     textTransform: 'uppercase',
-  },
-  badgeSistema: {
-    backgroundColor: '#1e3a8a',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  textoBadgeSistema: {
-    color: '#93c5fd',
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
+    marginBottom: 4,
   },
   tituloModulo: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: '800',
     color: '#f9fafb',
     letterSpacing: -0.5,
-  },
-  subtituloModulo: {
-    fontSize: 13,
-    color: '#9ca3af',
-    marginTop: 4,
-    lineHeight: 18,
   },
   bloqueAcciones: {
     alignItems: 'flex-end',
@@ -209,39 +142,5 @@ const estilos = StyleSheet.create({
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',
-  },
-  botonRecargar: {
-    backgroundColor: '#374151',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    justifyContent: 'center',
-  },
-  textoBotonRecargar: {
-    color: '#f3f4f6',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  barraMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#1f2937',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  textoMeta: {
-    fontSize: 12,
-    color: '#9ca3af',
-  },
-  valorMeta: {
-    color: '#e5e7eb',
-    fontWeight: '600',
-  },
-  separadorMeta: {
-    color: '#4b5563',
-    fontSize: 10,
   },
 });

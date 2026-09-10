@@ -8,3 +8,6 @@ export * from './categoria';
 export * from './capacidad';
 export * from './configuracion';
 export * from './negocio';
+export * from './exportacion';
+export * from './comercial';
+export * from './recibo';

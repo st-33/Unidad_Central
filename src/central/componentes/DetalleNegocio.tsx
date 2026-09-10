@@ -21,129 +21,117 @@ export const DetalleNegocio: React.FC<PropsDetalleNegocio> = ({
     return (
       <View style={estilos.contenedorSinSeleccion}>
         <View style={estilos.iconoPlaceholder}>
-          <Text style={estilos.textoIcono}>ℹ</Text>
+          <Text style={estilos.textoIcono}>📋</Text>
         </View>
-        <Text style={estilos.tituloSinSeleccion}>Ningún negocio seleccionado</Text>
+        <Text style={estilos.tituloSinSeleccion}>Selecciona un negocio</Text>
         <Text style={estilos.subtituloSinSeleccion}>
-          Selecciona un negocio del listado para inspeccionar su identidad, contexto de categoría y
-          administrar sus capacidades operativas en la RTDB.
+          Elige un negocio del listado para gestionar sus capacidades operativas.
         </Text>
       </View>
     );
   }
 
-  const categoria = categorias.find((c) => c.id === negocio.categoriaId);
+  const categoria = categorias.find((c) => c.categoria_id === negocio.categoria_id);
+
+  // Validación defensiva: log de debugging
+  React.useEffect(() => {
+    if (!categoria) {
+      console.warn(`[DetalleNegocio] Categoría no encontrada para negocio "${negocio.nombre_comercial}" (categoria_id: ${negocio.categoria_id})`);
+    } else if (!categoria.capacidades_permitidas || !Array.isArray(categoria.capacidades_permitidas)) {
+      console.error(`[DetalleNegocio] Categoría "${categoria.nombre}" no tiene capacidades_permitidas válidas:`, categoria);
+    }
+  }, [categoria, negocio]);
+
+  // Filtrar capacidades: solo mostrar las que la categoría permite
+  const capacidadesRelevantes = React.useMemo(() => {
+    // Si no hay categoría o no tiene capacidades permitidas, mostrar todas
+    if (!categoria || !categoria.capacidades_permitidas || !Array.isArray(categoria.capacidades_permitidas)) {
+      console.warn(`[DetalleNegocio] Mostrando todas las capacidades porque la categoría no tiene restricciones válidas`);
+      return capacidadesCatalogo;
+    }
+    
+    const filtradas = capacidadesCatalogo.filter((cap) =>
+      categoria.capacidades_permitidas.includes(cap.clave)
+    );
+    
+    console.log(`[DetalleNegocio] Capacidades filtradas para ${categoria.nombre}:`, filtradas.map(c => c.clave));
+    return filtradas;
+  }, [categoria, capacidadesCatalogo]);
 
   return (
     <View style={estilos.contenedor}>
       {/* Cabecera del detalle */}
       <View style={estilos.cabeceraDetalle}>
         <View style={estilos.bloqueIdentidad}>
-          <View style={estilos.filaBadgeContexto}>
-            <View style={estilos.badgeCategoria}>
-              <Text style={estilos.textoBadgeCategoria}>
-                Categoría: {categoria?.nombre ?? negocio.categoriaId}
-              </Text>
-            </View>
-            <View
-              style={[
-                estilos.badgeEstado,
-                { backgroundColor: negocio.activo ? '#ecfdf5' : '#fef2f2' },
-              ]}
-            >
-              <Text
-                style={[
-                  estilos.textoBadgeEstado,
-                  { color: negocio.activo ? '#059669' : '#dc2626' },
-                ]}
-              >
-                {negocio.activo ? 'Operativo' : 'Inactivo'}
-              </Text>
-            </View>
-          </View>
-
-          <Text style={estilos.nombreComercial}>{negocio.nombreComercial}</Text>
-          <Text style={estilos.razonSocial}>Razón Social: {negocio.nombre}</Text>
-          <Text style={estilos.idRegistro}>ID en RTDB: {negocio.id}</Text>
+          <Text style={estilos.nombreComercial}>{negocio.nombre_comercial}</Text>
+          <Text style={estilos.categoria}>
+            {categoria?.nombre ?? negocio.categoria_id} • {negocio.activo ? '🟢 Activo' : '🔴 Inactivo'}
+          </Text>
         </View>
 
         {guardandoCapacidad && (
           <View style={estilos.indicadorGuardado}>
             <ActivityIndicator size="small" color="#059669" />
-            <Text style={estilos.textoGuardado}>Actualizando RTDB...</Text>
+            <Text style={estilos.textoGuardado}>Guardando...</Text>
           </View>
         )}
       </View>
 
       {/* Sección de capacidades operativas */}
       <View style={estilos.seccionCapacidades}>
-        <View style={estilos.filaTituloCapacidades}>
-          <Text style={estilos.tituloSeccion}>CONFIGURACIÓN DE CAPACIDADES</Text>
-          <Text style={estilos.subtituloCapacidades}>
-            Las capacidades modificadas se persisten directamente en el registro propio del negocio.
-          </Text>
-        </View>
+        <Text style={estilos.tituloSeccion}>Capacidades</Text>
 
-        <View style={estilos.listaCapacidades}>
-          {capacidadesCatalogo.map((cap) => {
-            const ajuste = negocio.configuracion.capacidades[cap.clave];
-            const estaHabilitada = Boolean(ajuste?.activa);
+        {capacidadesRelevantes.length === 0 ? (
+          <View style={estilos.estadoVacio}>
+            <Text style={estilos.textoVacio}>
+              No hay capacidades disponibles para esta categoría.
+            </Text>
+          </View>
+        ) : (
+          <View style={estilos.listaCapacidades}>
+            {capacidadesRelevantes.map((cap) => {
+              const ajuste = negocio.configuracion.capacidades[cap.clave];
+              const estaHabilitada = Boolean(ajuste?.activa);
 
-            return (
-              <View
-                key={cap.id}
-                style={[
-                  estilos.tarjetaCapacidad,
-                  estaHabilitada && estilos.tarjetaCapacidadHabilitada,
-                ]}
-              >
-                <View style={estilos.infoCapacidad}>
-                  <View style={estilos.filaEncabezadoCapacidad}>
-                    <Text style={estilos.nombreCapacidad}>{cap.nombre}</Text>
-                    <View
-                      style={[
-                        estilos.pillEstadoCapacidad,
-                        { backgroundColor: estaHabilitada ? '#d1fae5' : '#f3f4f6' },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          estilos.textoPillCapacidad,
-                          { color: estaHabilitada ? '#065f46' : '#6b7280' },
-                        ]}
-                      >
-                        {estaHabilitada ? 'Habilitada' : 'Deshabilitada'}
-                      </Text>
-                    </View>
+              return (
+                <View
+                  key={cap.id}
+                  style={[
+                    estilos.tarjetaCapacidad,
+                    estaHabilitada && estilos.tarjetaCapacidadHabilitada,
+                  ]}
+                >
+                  <View style={estilos.infoCapacidad}>
+                    <Text style={estilos.nombreCapacidad}>
+                      {estaHabilitada ? '✅' : '⚪'} {cap.nombre}
+                    </Text>
+                    <Text style={estilos.descripcionCapacidad}>{cap.descripcion}</Text>
                   </View>
 
-                  <Text style={estilos.claveCapacidad}>Clave: {cap.clave}</Text>
-                  <Text style={estilos.descripcionCapacidad}>{cap.descripcion}</Text>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    estilos.botonAlternar,
-                    estaHabilitada ? estilos.botonDeshabilitar : estilos.botonHabilitar,
-                    guardandoCapacidad && estilos.botonDeshabilitado,
-                  ]}
-                  onPress={() => onAlternarCapacidad(cap.clave, !estaHabilitada)}
-                  disabled={guardandoCapacidad}
-                  activeOpacity={0.8}
-                >
-                  <Text
+                  <TouchableOpacity
                     style={[
-                      estilos.textoBotonAlternar,
-                      estaHabilitada ? estilos.textoDeshabilitar : estilos.textoHabilitar,
+                      estilos.botonAlternar,
+                      estaHabilitada ? estilos.botonDeshabilitar : estilos.botonHabilitar,
+                      guardandoCapacidad && estilos.botonDeshabilitado,
                     ]}
+                    onPress={() => onAlternarCapacidad(cap.clave, !estaHabilitada)}
+                    disabled={guardandoCapacidad}
+                    activeOpacity={0.7}
                   >
-                    {estaHabilitada ? 'Desactivar' : 'Activar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-        </View>
+                    <Text
+                      style={[
+                        estilos.textoBotonAlternar,
+                        estaHabilitada ? estilos.textoDeshabilitar : estilos.textoHabilitar,
+                      ]}
+                    >
+                      {estaHabilitada ? 'Desactivar' : 'Activar'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </View>
     </View>
   );
@@ -152,146 +140,86 @@ export const DetalleNegocio: React.FC<PropsDetalleNegocio> = ({
 const estilos = StyleSheet.create({
   contenedor: {
     backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 18,
-    borderWidth: 1.5,
-    borderColor: '#059669',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
+    borderRadius: 8,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#d1d5db',
     marginBottom: 16,
   },
   contenedorSinSeleccion: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
-    padding: 32,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    padding: 40,
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
     borderColor: '#e5e7eb',
     marginBottom: 16,
   },
   iconoPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
     marginBottom: 12,
   },
   textoIcono: {
-    fontSize: 20,
-    color: '#6b7280',
-    fontWeight: '700',
+    fontSize: 32,
   },
   tituloSinSeleccion: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#374151',
     marginBottom: 6,
   },
   subtituloSinSeleccion: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#6b7280',
     textAlign: 'center',
-    lineHeight: 18,
-    maxWidth: 420,
+    lineHeight: 20,
   },
   cabeceraDetalle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    paddingBottom: 14,
-    marginBottom: 16,
-    flexWrap: 'wrap',
-    gap: 12,
+    borderBottomColor: '#e5e7eb',
+    paddingBottom: 16,
+    marginBottom: 20,
   },
   bloqueIdentidad: {
     flex: 1,
-    minWidth: 240,
-  },
-  filaBadgeContexto: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 6,
-  },
-  badgeCategoria: {
-    backgroundColor: '#ecfdf5',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  textoBadgeCategoria: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#065f46',
-  },
-  badgeEstado: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  textoBadgeEstado: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
   nombreComercial: {
-    fontSize: 22,
-    fontWeight: '800',
+    fontSize: 20,
+    fontWeight: '700',
     color: '#111827',
+    marginBottom: 4,
   },
-  razonSocial: {
-    fontSize: 13,
-    color: '#4b5563',
-    marginTop: 2,
-  },
-  idRegistro: {
-    fontSize: 11,
-    color: '#9ca3af',
-    fontFamily: 'monospace',
-    marginTop: 2,
+  categoria: {
+    fontSize: 14,
+    color: '#6b7280',
   },
   indicadorGuardado: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
     backgroundColor: '#ecfdf5',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
   },
   textoGuardado: {
-    fontSize: 11,
-    color: '#065f46',
-    fontWeight: '600',
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '500',
   },
   seccionCapacidades: {
     gap: 12,
   },
-  filaTituloCapacidades: {
-    marginBottom: 4,
-  },
   tituloSeccion: {
-    fontSize: 11,
-    fontWeight: '800',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#111827',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-  },
-  subtituloCapacidades: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 2,
+    marginBottom: 12,
   },
   listaCapacidades: {
-    gap: 10,
+    gap: 12,
   },
   tarjetaCapacidad: {
     flexDirection: 'row',
@@ -299,77 +227,68 @@ const estilos = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f9fafb',
     borderRadius: 8,
-    padding: 12,
+    padding: 16,
     borderWidth: 1,
     borderColor: '#e5e7eb',
   },
   tarjetaCapacidadHabilitada: {
-    borderColor: '#a7f3d0',
-    backgroundColor: '#fafdfb',
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
   },
   infoCapacidad: {
     flex: 1,
-    marginRight: 12,
-  },
-  filaEncabezadoCapacidad: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 2,
+    marginRight: 16,
   },
   nombreCapacidad: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#111827',
-  },
-  pillEstadoCapacidad: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  textoPillCapacidad: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  claveCapacidad: {
-    fontSize: 10,
-    color: '#059669',
-    fontFamily: 'monospace',
-    marginBottom: 2,
+    marginBottom: 4,
   },
   descripcionCapacidad: {
-    fontSize: 12,
-    color: '#4b5563',
-    lineHeight: 16,
+    fontSize: 13,
+    color: '#6b7280',
+    lineHeight: 18,
   },
   botonAlternar: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
     borderRadius: 6,
-    minWidth: 96,
+    minWidth: 100,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   botonHabilitar: {
-    backgroundColor: '#111827',
+    backgroundColor: '#059669',
   },
   botonDeshabilitar: {
-    backgroundColor: '#fee2e2',
+    backgroundColor: '#ffffff',
     borderWidth: 1,
-    borderColor: '#fca5a5',
+    borderColor: '#dc2626',
   },
   botonDeshabilitado: {
     opacity: 0.5,
   },
   textoBotonAlternar: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
   },
   textoHabilitar: {
     color: '#ffffff',
   },
   textoDeshabilitar: {
-    color: '#b91c1c',
+    color: '#dc2626',
+  },
+  estadoVacio: {
+    padding: 24,
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  textoVacio: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
   },
 });

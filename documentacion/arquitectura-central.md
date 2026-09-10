@@ -1,56 +1,174 @@
-# Unidad Central - Módulo Central
+# Unidad Central
 
-## 1. ¿Qué es Unidad Central?
-Unidad Central es el núcleo de supervisión, catálogo e infraestructura transversal de la red de soluciones y negocios. No es una aplicación operativa de venta directa ni logística de última milla; es la autoridad central de configuración, identidades y gobernanza de la red.
+## Descripción
 
-## 2. ¿Qué es Central?
-Central es la primera unidad funcional del proyecto Unidad Central. Es el nodo responsable de gestionar el catálogo maestro:
-- Categorías sectoriales (ej. Marisquerías, Verdulerías, Hornos de Pan).
-- Negocios registrados dentro de cada categoría.
-- Capacidades operativas y su configuración individual por negocio.
-- Persistencia centralizada en Firebase Realtime Database (RTDB).
+**Unidad Central** es la autoridad administrativa del ecosistema ADI. Gestiona el catálogo maestro de categorías, negocios y capacidades operativas que son consumidas por los repositorios operativos (Marisquerías, Verdulerías, Servicio a Domicilio, etc.).
 
-## 3. Principio Fundamental de Dominio
+### ¿Qué Administra Central?
+
+✅ **Identidades de negocios** — Registro y contexto de cada negocio  
+✅ **Estructura de categorías** — Definición de rubros y sectores  
+✅ **Catálogo de capacidades** — Funcionalidades disponibles en el ecosistema  
+✅ **Configuración de capacidades por negocio** — Qué capacidades están activas en cada negocio
+
+### ¿Qué NO Administra Central?
+
+❌ Operación de negocios (pedidos, ventas, transacciones)  
+❌ Logística (repartidores, rutas, zonas de reparto)  
+❌ Recursos operativos (inventarios, precios, horarios)  
+❌ Analítica (métricas, KPIs, reportes)
+
+## Jerarquía Canónica
+
+Central implementa y valida la siguiente jerarquía:
+
 ```
-CATEGORÍA (Contexto sectorial)
-     ↓
-NEGOCIO (Identidad propia)
-     ↓
-CONFIGURACIÓN PROPIA (Ajustes particulares)
-     ↓
-CAPACIDADES (Mostrador, básculas, pesaje, etc.)
+CAPACIDAD GLOBAL (ej: "mostrador", "reparto", "horno")
+    ↓
+CATEGORÍA (ej: "Marisquerías" permite ["mostrador", "bascula", "reparto"])
+    ↓
+NEGOCIO (ej: "Puerto Libres" activa ["mostrador", "bascula"], desactiva "reparto")
 ```
-**Categoría no es igual a Negocio**: Múltiples negocios pertenecen a una misma categoría pero pueden poseer capacidades y configuraciones operativas completamente distintas.
 
-## 4. Alcance de esta Primera Implementación
-- **Incluido**:
-  - Contratos base de identidad, categoría, negocio, capacidad y configuración (libres de dependencias de UI/Firebase).
-  - Infraestructura técnica encapsulada hacia Firebase RTDB del proyecto `base-principal-ma1`.
-  - Repositorios de persistencia tipados en español latino.
-  - Servicio de lógica de Central para orquestar altas, validaciones y resúmenes.
-  - Estado de conexión y resumen desacoplado (`useEstadoCentral`).
-  - Superficie visual mínima técnica para validar estado y conectividad.
-  - Suite de pruebas unitarias y script de validación.
+### Regla Arquitectónica Inquebrantable
 
-- **Explícitamente Fuera de Alcance**:
-  - Torre de Control.
-  - Mapas y geolocalización.
-  - Aplicaciones operativas de negocios (Marisquerías, Verdulerías, etc.).
-  - Motor logístico y ADIRepart.
-  - Pedidos, repartidores e inventarios.
-  - Dashboards comerciales o analítica avanzada.
+**CAPACIDAD EXISTE GLOBALMENTE → CATEGORÍA DEFINE SI APLICA → NEGOCIO DEFINE SI ESTÁ ACTIVA**
 
-## 5. Organización del Código
+Las validaciones se aplican en este orden:
+1. ✅ La capacidad existe globalmente
+2. ✅ La capacidad está disponible (no obsoleta)
+3. ✅ La categoría del negocio permite esa capacidad
+4. ✅ Solo entonces se puede activar/desactivar en el negocio
+
+## Estructura del Proyecto
+
 ```
 Unidad_Central/
-├── app/                  # Rutas y layout de Expo Router (sin lógica pesada)
-├── configuracion/        # Parámetros y credenciales centralizadas de Firebase
-├── contratos/            # Contratos puros de dominio (sin dependencias externas)
-├── documentacion/        # Documentación técnica esencial
-├── pruebas/              # Pruebas unitarias reales de contratos y servicios
-├── scripts/              # Scripts de automatización y verificación
+├── app/                      # Rutas Expo Router
+├── configuracion/            # Configuración de Firebase RTDB
+├── contratos/                # Contratos puros de dominio
+│   ├── identidad.ts         # IdentificadorUnico, EntidadIdentificable
+│   ├── categoria.ts         # Categoria (con capacidadesPermitidas)
+│   ├── capacidad.ts         # DefinicionCapacidad (con disponible)
+│   ├── configuracion.ts     # ConfiguracionNegocio
+│   ├── negocio.ts           # Negocio
+│   └── exportacion.ts       # Payloads de exportación para consumo externo
+├── documentacion/
+│   ├── arquitectura-central.md      # Arquitectura y diseño
+│   └── integracion-ecosistema.md    # Guía de integración para otros repos
+├── pruebas/
+│   ├── configuracion-firebase.test.ts
+│   └── contratos-y-servicio-central.test.ts
 └── src/
-    ├── central/          # Lógica, persistencia, estado y UI de Central
-    ├── compartido/       # Tipos y utilidades compartidas (ej. Resultado)
-    └── plataforma/       # Infraestructura técnica (conexión e init Firebase)
+    ├── central/
+    │   ├── componentes/     # Componentes UI
+    │   ├── estado/          # useEstadoCentral hook
+    │   ├── logica/          # ServicioCentral
+    │   ├── pantallas/       # PantallaCentral
+    │   └── persistencia/    # Repositorios RTDB
+    ├── compartido/          # Resultado<T, E>
+    └── plataforma/          # Inicialización de Firebase
 ```
+
+## Contratos de Exportación
+
+Central expone tres métodos principales para que los repositorios operativos consuman su configuración:
+
+### 1. Configuración de Negocio
+
+```typescript
+await servicioCentral.exportarConfiguracionNegocio("neg-puerto-libres");
+```
+
+Retorna:
+```typescript
+{
+  idNegocio: "neg-puerto-libres",
+  nombreComercial: "Marisquería Puerto Libres",
+  categoriaId: "cat-marisquerias",
+  categoriaNombre: "Marisquerías",
+  categoriaClave: "marisquerias",
+  capacidadesActivas: ["mostrador", "bascula"],  // Solo las activas
+  activo: true
+}
+```
+
+### 2. Catálogo de Capacidades
+
+```typescript
+await servicioCentral.exportarCatalogoCapacidades();
+```
+
+Retorna todas las capacidades disponibles en el sistema.
+
+### 3. Información de Categoría
+
+```typescript
+await servicioCentral.exportarCategoria("cat-marisquerias");
+```
+
+Retorna la categoría con sus capacidades permitidas.
+
+## Instalación y Uso
+
+### Requisitos
+
+- Node.js 18+
+- npm o yarn
+- Expo CLI
+- Firebase proyecto configurado
+
+### Instalación
+
+```bash
+npm install
+```
+
+### Desarrollo
+
+```bash
+npm start
+```
+
+### Pruebas
+
+```bash
+npm test
+```
+
+### Verificación del Sistema
+
+```bash
+npm run verificar
+```
+
+## Estado del Proyecto
+
+✅ TypeScript compilando sin errores  
+✅ 10/10 pruebas pasando  
+✅ Jerarquía canónica consolidada  
+✅ Motor de capacidades con validaciones exhaustivas  
+✅ Contratos de exportación listos  
+✅ UI optimizada y contextual  
+✅ Documentación exhaustiva  
+✅ Sin fugas de autoridad
+
+## Documentación
+
+- [Arquitectura de Central](./documentacion/arquitectura-central.md)
+- [Guía de Integración con el Ecosistema](./documentacion/integracion-ecosistema.md)
+
+## Tecnologías
+
+- **React Native** con Expo
+- **TypeScript** (nomenclatura en español)
+- **Firebase Realtime Database** (proyecto: base-principal-ma1)
+- **Node.js Test Runner** para pruebas
+
+## Licencia
+
+Propietario — ADI Ecosystem
+
+---
+
+**Unidad Central** — Autoridad administrativa del ecosistema ADI

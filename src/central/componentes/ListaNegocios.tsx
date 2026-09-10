@@ -7,6 +7,7 @@ interface PropsListaNegocios {
   readonly categorias: readonly Categoria[];
   readonly negocioSeleccionadoId: IdentificadorUnico | null;
   readonly onSeleccionarNegocio: (id: IdentificadorUnico) => void;
+  readonly onCrearNuevoNegocio: () => void;
 }
 
 export const ListaNegocios: React.FC<PropsListaNegocios> = ({
@@ -14,6 +15,7 @@ export const ListaNegocios: React.FC<PropsListaNegocios> = ({
   categorias,
   negocioSeleccionadoId,
   onSeleccionarNegocio,
+  onCrearNuevoNegocio,
 }) => {
   const mapaCategorias = React.useMemo(() => {
     const mapa = new Map<string, string>();
@@ -23,95 +25,58 @@ export const ListaNegocios: React.FC<PropsListaNegocios> = ({
     return mapa;
   }, [categorias]);
 
-  if (negocios.length === 0) {
-    return (
-      <View style={estilos.contenedorVacio}>
-        <Text style={estilos.textoVacio}>No hay negocios registrados para esta selección.</Text>
-      </View>
-    );
-  }
-
   return (
     <View style={estilos.contenedor}>
       <View style={estilos.cabeceraSeccion}>
-        <Text style={estilos.tituloSeccion}>NEGOCIOS REGISTRADOS</Text>
-        <Text style={estilos.conteoTotal}>{negocios.length} negocios</Text>
+        <Text style={estilos.tituloSeccion}>Negocios ({negocios.length})</Text>
+        <TouchableOpacity 
+          style={estilos.botonCrear}
+          onPress={onCrearNuevoNegocio}
+          activeOpacity={0.7}
+        >
+          <Text style={estilos.textoBotonCrear}>+ Crear Negocio</Text>
+        </TouchableOpacity>
       </View>
 
-      <View style={estilos.lista}>
-        {negocios.map((negocio) => {
-          const seleccionado = negocioSeleccionadoId === negocio.id;
-          const nombreCategoria = mapaCategorias.get(negocio.categoriaId) ?? 'Sin categoría';
+      {negocios.length === 0 ? (
+        <View style={estilos.contenedorVacio}>
+          <Text style={estilos.textoVacio}>
+            No hay negocios registrados. Usa el botón "Crear Negocio" para agregar el primero.
+          </Text>
+        </View>
+      ) : (
+        <View style={estilos.lista}>
+          {negocios.map((negocio) => {
+            const seleccionado = negocioSeleccionadoId === negocio.id;
+            const nombreCategoria = mapaCategorias.get(negocio.categoria_id) ?? 'Sin categoría';
 
-          // Contar capacidades activas
-          const capacidades = Object.values(negocio.configuracion.capacidades);
-          const activas = capacidades.filter((c) => c.activa).length;
-          const totalCapacidades = capacidades.length;
+            // Contar capacidades activas
+            const capacidades = Object.values(negocio.configuracion.capacidades);
+            const activas = capacidades.filter((c) => c.activa).length;
 
-          return (
-            <TouchableOpacity
-              key={negocio.id}
-              style={[
-                estilos.tarjeta,
-                seleccionado && estilos.tarjetaSeleccionada,
-              ]}
-              onPress={() => onSeleccionarNegocio(negocio.id)}
-              activeOpacity={0.7}
-            >
-              <View style={estilos.columnaPrincipal}>
-                <View style={estilos.filaCabeceraTarjeta}>
-                  <Text
-                    style={[
-                      estilos.nombreComercial,
-                      seleccionado && estilos.textoSeleccionado,
-                    ]}
-                  >
-                    {negocio.nombreComercial}
+            return (
+              <TouchableOpacity
+                key={negocio.id}
+                style={[
+                  estilos.tarjeta,
+                  seleccionado && estilos.tarjetaSeleccionada,
+                ]}
+                onPress={() => onSeleccionarNegocio(negocio.id)}
+                activeOpacity={0.7}
+              >
+                <View style={estilos.columnaPrincipal}>
+                  <Text style={estilos.nombreComercial}>
+                    {seleccionado ? '▶ ' : ''}{negocio.nombre_comercial}
                   </Text>
-                  <View
-                    style={[
-                      estilos.badgeEstado,
-                      { backgroundColor: negocio.activo ? '#ecfdf5' : '#fef2f2' },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        estilos.textoBadgeEstado,
-                        { color: negocio.activo ? '#059669' : '#dc2626' },
-                      ]}
-                    >
-                      {negocio.activo ? 'Activo' : 'Inactivo'}
-                    </Text>
-                  </View>
-                </View>
-
-                <Text style={estilos.razonSocial}>{negocio.nombre}</Text>
-
-                <View style={estilos.filaMeta}>
-                  <View style={estilos.badgeCategoria}>
-                    <Text style={estilos.textoBadgeCategoria}>{nombreCategoria}</Text>
-                  </View>
-
-                  <Text style={estilos.textoCapacidades}>
-                    Capacidades: <Text style={estilos.valorCapacidades}>{activas}/{totalCapacidades} activas</Text>
+                  <Text style={estilos.meta}>
+                    {nombreCategoria} • {activas} capacidades activas • {negocio.activo ? '🟢' : '🔴'}
                   </Text>
                 </View>
-              </View>
-
-              <View style={estilos.columnaIndicador}>
-                <View
-                  style={[
-                    estilos.circuloSeleccion,
-                    seleccionado && estilos.circuloSeleccionActivo,
-                  ]}
-                >
-                  {seleccionado && <View style={estilos.puntoInterno} />}
-                </View>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      )}
     </View>
   );
 };
@@ -119,7 +84,7 @@ export const ListaNegocios: React.FC<PropsListaNegocios> = ({
 const estilos = StyleSheet.create({
   contenedor: {
     backgroundColor: '#ffffff',
-    borderRadius: 10,
+    borderRadius: 8,
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
@@ -132,124 +97,61 @@ const estilos = StyleSheet.create({
     marginBottom: 12,
   },
   tituloSeccion: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#374151',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111827',
   },
-  conteoTotal: {
+  botonCrear: {
+    backgroundColor: '#059669',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  textoBotonCrear: {
+    color: '#ffffff',
     fontSize: 12,
-    color: '#6b7280',
     fontWeight: '600',
   },
   lista: {
-    gap: 10,
+    gap: 8,
   },
   tarjeta: {
     flexDirection: 'row',
     backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    padding: 14,
-    borderWidth: 1.5,
+    borderRadius: 6,
+    padding: 12,
+    borderWidth: 1,
     borderColor: '#e5e7eb',
-    alignItems: 'center',
   },
   tarjetaSeleccionada: {
     borderColor: '#059669',
     backgroundColor: '#f0fdf4',
+    borderWidth: 2,
   },
   columnaPrincipal: {
     flex: 1,
   },
-  filaCabeceraTarjeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-    marginRight: 10,
-  },
   nombreComercial: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#111827',
+    marginBottom: 4,
   },
-  textoSeleccionado: {
-    color: '#065f46',
-  },
-  badgeEstado: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  textoBadgeEstado: {
-    fontSize: 10,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  razonSocial: {
+  meta: {
     fontSize: 12,
     color: '#6b7280',
-    marginBottom: 8,
-  },
-  filaMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flexWrap: 'wrap',
-  },
-  badgeCategoria: {
-    backgroundColor: '#e5e7eb',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  textoBadgeCategoria: {
-    fontSize: 11,
-    color: '#1f2937',
-    fontWeight: '600',
-  },
-  textoCapacidades: {
-    fontSize: 11,
-    color: '#6b7280',
-  },
-  valorCapacidades: {
-    fontWeight: '700',
-    color: '#111827',
-  },
-  columnaIndicador: {
-    paddingLeft: 8,
-  },
-  circuloSeleccion: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  circuloSeleccionActivo: {
-    borderColor: '#059669',
-  },
-  puntoInterno: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#059669',
   },
   contenedorVacio: {
-    backgroundColor: '#ffffff',
-    borderRadius: 10,
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
     padding: 24,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#e5e7eb',
-    marginBottom: 16,
   },
   textoVacio: {
     fontSize: 13,
     color: '#6b7280',
-    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });
