@@ -2,6 +2,7 @@ import { ref, get, set, child } from 'firebase/database';
 import type { Categoria, IdentificadorUnico } from '../../../contratos';
 import { obtenerBaseDatosTiempoReal } from '../../plataforma/firebase';
 import { RUTAS_RTDB_CENTRAL } from './rutas-rtdb';
+import { almacenMemoria, conTiempoLimite } from './almacen-memoria';
 
 export interface RepositorioCategorias {
   listar(): Promise<readonly Categoria[]>;
@@ -11,33 +12,48 @@ export interface RepositorioCategorias {
 
 export class RepositorioCategoriasRtdb implements RepositorioCategorias {
   async listar(): Promise<readonly Categoria[]> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = ref(db, RUTAS_RTDB_CENTRAL.categorias);
-    const instantanea = await get(referencia);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = ref(db, RUTAS_RTDB_CENTRAL.categorias);
+      const instantanea = await conTiempoLimite(get(referencia), 2000);
 
-    if (!instantanea.exists()) {
-      return [];
+      if (!instantanea.exists()) {
+        return almacenMemoria.categorias.listar();
+      }
+
+      const valor = instantanea.val();
+      const lista = Object.values(valor) as Categoria[];
+      almacenMemoria.categorias.sincronizar(lista);
+      return lista;
+    } catch {
+      return almacenMemoria.categorias.listar();
     }
-
-    const valor = instantanea.val();
-    return Object.values(valor) as Categoria[];
   }
 
   async obtenerPorId(id: IdentificadorUnico): Promise<Categoria | null> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.categorias), id);
-    const instantanea = await get(referencia);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.categorias), id);
+      const instantanea = await conTiempoLimite(get(referencia), 2000);
 
-    if (!instantanea.exists()) {
-      return null;
+      if (!instantanea.exists()) {
+        return almacenMemoria.categorias.obtenerPorId(id);
+      }
+
+      return instantanea.val() as Categoria;
+    } catch {
+      return almacenMemoria.categorias.obtenerPorId(id);
     }
-
-    return instantanea.val() as Categoria;
   }
 
   async guardar(categoria: Categoria): Promise<void> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.categorias), categoria.id);
-    await set(referencia, categoria);
+    almacenMemoria.categorias.guardar(categoria);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = child(ref(db, RUTAS_RTDB_CENTRAL.categorias), categoria.id);
+      await conTiempoLimite(set(referencia, categoria), 2000);
+    } catch {
+      // Offline fallback saved
+    }
   }
 }

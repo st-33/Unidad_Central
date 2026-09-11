@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 3000",
+    "build": "vite build",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
     "check-types": "tsc --noEmit",
+    "lint": "tsc --noEmit",
     "test": "node --import tsx --test pruebas/**/*.test.ts",
     "prueba": "node --import tsx --test pruebas/**/*.test.ts",
     "verificar": "node --import tsx scripts/verificar-sistema.ts && npm run check-types && npm test"
@@ -30,8 +33,11 @@
   "devDependencies": {
     "@types/node": "^22.13.0",
     "@types/react": "~18.3.12",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
     "tsx": "^4.23.13",
-    "typescript": "^5.3.3"
+    "typescript": "^5.3.3",
+    "vite": "^8.2.2"
   },
   "private": true
 }

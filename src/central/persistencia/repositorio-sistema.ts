@@ -1,6 +1,7 @@
 import { ref, get, set } from 'firebase/database';
 import { obtenerBaseDatosTiempoReal } from '../../plataforma/firebase';
 import { RUTAS_RTDB_CENTRAL } from './rutas-rtdb';
+import { almacenMemoria, conTiempoLimite } from './almacen-memoria';
 
 export interface EstadoEstructuraSistema {
   readonly inicializado: boolean;
@@ -15,25 +16,36 @@ export interface RepositorioSistema {
 
 export class RepositorioSistemaRtdb implements RepositorioSistema {
   async obtenerEstado(): Promise<EstadoEstructuraSistema | null> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = ref(db, RUTAS_RTDB_CENTRAL.sistema);
-    const instantanea = await get(referencia);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = ref(db, RUTAS_RTDB_CENTRAL.sistema);
+      const instantanea = await conTiempoLimite(get(referencia), 2000);
 
-    if (!instantanea.exists()) {
-      return null;
+      if (!instantanea.exists()) {
+        return almacenMemoria.sistema.obtener();
+      }
+
+      const valor = instantanea.val() as EstadoEstructuraSistema;
+      almacenMemoria.sistema.sincronizar(valor);
+      return valor;
+    } catch {
+      return almacenMemoria.sistema.obtener();
     }
-
-    return instantanea.val() as EstadoEstructuraSistema;
   }
 
   async marcarInicializado(version = 1): Promise<void> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = ref(db, RUTAS_RTDB_CENTRAL.sistema);
-    const datos: EstadoEstructuraSistema = {
-      inicializado: true,
-      version,
-      inicializadoEn: Date.now(),
-    };
-    await set(referencia, datos);
+    almacenMemoria.sistema.marcarInicializado(version);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = ref(db, RUTAS_RTDB_CENTRAL.sistema);
+      const datos: EstadoEstructuraSistema = {
+        inicializado: true,
+        version,
+        inicializadoEn: Date.now(),
+      };
+      await conTiempoLimite(set(referencia, datos), 2000);
+    } catch {
+      // Offline fallback already recorded in memory
+    }
   }
 }

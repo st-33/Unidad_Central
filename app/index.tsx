@@ -1,10 +1,10 @@
 import React from 'react';
-import { PantallaCentral } from '../src/central';
+import { PantallaTorreControl } from '../src/torre';
 
 /**
  * Ruta raíz de Expo Router ('/').
- * Delega la ejecución completa al módulo de Central sin contener lógica interna.
+ * Presenta la Torre de Control para registro y configuración operativa directa sobre RTDB matriz.
  */
-export default function RutaPrincipalCentral() {
-  return <PantallaCentral />;
+export default function RutaPrincipalTorreControl() {
+  return <PantallaTorreControl />;
 }

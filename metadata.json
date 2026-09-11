@@ -1,0 +1,6 @@
+{
+  "name": "Unidad Central",
+  "description": "Torre de Control para registrar, configurar y verificar negocios directamente en la RTDB matriz (minegocioaunclick).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

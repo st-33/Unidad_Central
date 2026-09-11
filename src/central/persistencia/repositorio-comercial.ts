@@ -2,17 +2,10 @@ import { ref, get, set, child } from 'firebase/database';
 import type { IdentificadorUnico, InformacionComercial } from '../../../contratos';
 import { obtenerBaseDatosTiempoReal } from '../../plataforma/firebase';
 import { RUTAS_RTDB_CENTRAL } from './rutas-rtdb';
+import { almacenMemoria, conTiempoLimite } from './almacen-memoria';
 
 /**
  * Repositorio para información comercial de negocios.
- * 
- * Estructura:
- * central/negocios/{negocio_id}/comercial/
- *   modalidad
- *   estado_comercial
- *   suscripcion_estado
- *   suscripcion_vigencia
- *   peaje_config
  */
 export interface RepositorioComercial {
   obtener(negocioId: IdentificadorUnico): Promise<InformacionComercial | null>;
@@ -30,39 +23,53 @@ export interface RepositorioComercial {
 
 export class RepositorioComercialRtdb implements RepositorioComercial {
   async obtener(negocioId: IdentificadorUnico): Promise<InformacionComercial | null> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = child(
-      ref(db, RUTAS_RTDB_CENTRAL.negocios),
-      `${negocioId}/comercial`
-    );
-    const instantanea = await get(referencia);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = child(
+        ref(db, RUTAS_RTDB_CENTRAL.negocios),
+        `${negocioId}/comercial`
+      );
+      const instantanea = await conTiempoLimite(get(referencia), 2000);
 
-    if (!instantanea.exists()) {
-      return null;
+      if (!instantanea.exists()) {
+        return almacenMemoria.comercial.obtener(negocioId);
+      }
+
+      return instantanea.val() as InformacionComercial;
+    } catch {
+      return almacenMemoria.comercial.obtener(negocioId);
     }
-
-    return instantanea.val() as InformacionComercial;
   }
 
   async guardar(info: InformacionComercial): Promise<void> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = child(
-      ref(db, RUTAS_RTDB_CENTRAL.negocios),
-      `${info.negocio_id}/comercial`
-    );
-    await set(referencia, info);
+    almacenMemoria.comercial.guardar(info);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = child(
+        ref(db, RUTAS_RTDB_CENTRAL.negocios),
+        `${info.negocio_id}/comercial`
+      );
+      await conTiempoLimite(set(referencia, info), 2000);
+    } catch {
+      // Offline fallback saved
+    }
   }
 
   async actualizarEstadoComercial(
     negocioId: IdentificadorUnico,
     estadoComercial: InformacionComercial['estado_comercial']
   ): Promise<void> {
-    const db = obtenerBaseDatosTiempoReal();
-    const referencia = child(
-      ref(db, RUTAS_RTDB_CENTRAL.negocios),
-      `${negocioId}/comercial/estado_comercial`
-    );
-    await set(referencia, estadoComercial);
+    almacenMemoria.comercial.actualizarEstado(negocioId, estadoComercial);
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const referencia = child(
+        ref(db, RUTAS_RTDB_CENTRAL.negocios),
+        `${negocioId}/comercial/estado_comercial`
+      );
+      await conTiempoLimite(set(referencia, estadoComercial), 2000);
+    } catch {
+      // Offline fallback saved
+    }
   }
 
   async actualizarEstadoSuscripcion(
@@ -70,19 +77,23 @@ export class RepositorioComercialRtdb implements RepositorioComercial {
     estadoSuscripcion: InformacionComercial['suscripcion_estado'],
     vigencia?: number
   ): Promise<void> {
-    const db = obtenerBaseDatosTiempoReal();
-    const refEstado = child(
-      ref(db, RUTAS_RTDB_CENTRAL.negocios),
-      `${negocioId}/comercial/suscripcion_estado`
-    );
-    await set(refEstado, estadoSuscripcion);
-
-    if (vigencia !== undefined) {
-      const refVigencia = child(
+    try {
+      const db = obtenerBaseDatosTiempoReal();
+      const refEstado = child(
         ref(db, RUTAS_RTDB_CENTRAL.negocios),
-        `${negocioId}/comercial/suscripcion_vigencia`
+        `${negocioId}/comercial/suscripcion_estado`
       );
-      await set(refVigencia, vigencia);
+      await conTiempoLimite(set(refEstado, estadoSuscripcion), 2000);
+
+      if (vigencia !== undefined) {
+        const refVigencia = child(
+          ref(db, RUTAS_RTDB_CENTRAL.negocios),
+          `${negocioId}/comercial/suscripcion_vigencia`
+        );
+        await conTiempoLimite(set(refVigencia, vigencia), 2000);
+      }
+    } catch {
+      // Offline fallback
     }
   }
 }

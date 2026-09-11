@@ -7,6 +7,7 @@ import {
   ListaNegocios,
   DetalleNegocio,
   BannersEstado,
+  ModalCrearNegocio,
 } from '../componentes';
 
 /**
@@ -20,6 +21,7 @@ export const PantallaCentral: React.FC = () => {
     cargando,
     ejecutandoInicializacion,
     guardandoCapacidad,
+    creandoNegocio,
     resumen,
     negocioSeleccionado,
     categoriaFiltroId,
@@ -30,7 +32,10 @@ export const PantallaCentral: React.FC = () => {
     seleccionarNegocio,
     filtrarPorCategoria,
     cambiarEstadoCapacidad,
+    crearNegocio,
   } = useEstadoCentral();
+
+  const [mostrarModalCrear, setMostrarModalCrear] = React.useState(false);
 
   const estaInicializado = Boolean(resumen?.inicializado);
 
@@ -94,10 +99,7 @@ export const PantallaCentral: React.FC = () => {
                 categorias={resumen?.categorias ?? []}
                 negocioSeleccionadoId={negocioSeleccionado?.id ?? null}
                 onSeleccionarNegocio={seleccionarNegocio}
-                onCrearNuevoNegocio={() => {
-                  // TODO: Implementar creación de nuevo negocio
-                  console.log('Crear nuevo negocio');
-                }}
+                onCrearNuevoNegocio={() => setMostrarModalCrear(true)}
               />
             </View>
 
@@ -113,6 +115,19 @@ export const PantallaCentral: React.FC = () => {
             </View>
           </View>
         )}
+
+        <ModalCrearNegocio
+          visible={mostrarModalCrear}
+          categorias={resumen?.categorias ?? []}
+          creando={creandoNegocio}
+          onCerrar={() => setMostrarModalCrear(false)}
+          onCrear={async (datos) => {
+            const exito = await crearNegocio(datos);
+            if (exito) {
+              setMostrarModalCrear(false);
+            }
+          }}
+        />
       </View>
     </ScrollView>
   );
