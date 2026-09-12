@@ -11,8 +11,8 @@
     "web": "expo start --web",
     "check-types": "tsc --noEmit",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test pruebas/**/*.test.ts",
-    "prueba": "node --import tsx --test pruebas/**/*.test.ts",
+    "test": "node --import tsx --test 'pruebas/*.test.ts' 'pruebas/**/*.test.ts'",
+    "prueba": "node --import tsx --test 'pruebas/*.test.ts' 'pruebas/**/*.test.ts'",
     "verificar": "node --import tsx scripts/verificar-sistema.ts && npm run check-types && npm test"
   },
   "dependencies": {
