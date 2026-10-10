@@ -1,64 +1,35 @@
 /**
- * Módulos del sistema configurables para cada negocio (limpios y directos)
+ * Módulos del sistema configurables para cada negocio (gobernanza y capacidades limpias)
  */
-export const MODULOS_SISTEMA = ['Caja', 'Cocina', 'Mesero', 'Reparto'] as const;
+export const MODULOS_SISTEMA = ['Operación', 'Inventario', 'Catálogo', 'Reparto'] as const;
 export type ModuloSistema = typeof MODULOS_SISTEMA[number];
 
 /**
- * Políticas de autorización para dispositivos y navegadores
+ * Estructura de categoría registrada con su URL de RTDB correspondiente
  */
-export interface PoliticaDispositivos {
-  permitir_navegador_web: boolean;
-  permitir_dispositivos_genericos: boolean;
-  validar_hardware_estricto: boolean;
-}
-
-/**
- * Estructura de dispositivo vinculado al negocio
- */
-export interface DispositivoVinculado {
-  deviceId: string;
-  alias?: string;
-  nombre?: string;
-  tipo?: 'caja' | 'comanda' | 'cocina' | 'administrador' | 'reparto' | 'otro';
-  estado: 'activo' | 'bloqueado' | 'pendiente';
-  nivelOperativo?: string;
-  puedeCambiarRol?: boolean;
-  rolesPermitidos?: Record<string, boolean>;
-  brand?: string;
-  marca?: string;
-  model?: string;
-  modelo?: string;
-  systemName?: string;
-  systemVersion?: string;
-  isEmulator?: boolean;
-  esWeb?: boolean;
-  esGenerico?: boolean;
-  clavePreautorizacion?: string;
-  fechaRegistro?: number;
-  ultimoAcceso?: number;
-  ultimoHeartbeat?: number;
-  vinculadoEn?: number;
-  fecha_vinculacion?: string;
-  ultima_conexion?: string;
+export interface RegistroCategoria {
+  nombre: string;
+  rtdb_url: string;
+  creada_en?: string;
 }
 
 /**
  * Estructura limpia del negocio en RTDB bajo /{Categoria}/{id}
  */
 export interface NegocioRTDB {
-  id: string; // Clave de 3 caracteres (ej: 'mpl')
+  id: string; // Nombre canónico sanitizado (ej: 'Marisqueria_Puerto_Libres')
   nombre: string; // Nombre comercial exacto (ej: 'Marisquería Puerto Libres')
   categoria: string; // Categoría padre (ej: 'Marisquerias')
   activo: boolean;
   codigo: string; // Código de acceso único (ej: 'PL2026-24')
-  limite: number; // Límite numérico de dispositivos
+  limite: number; // Límite numérico de terminales
   bloqueados: Record<string, boolean>; // Módulos bloqueados
   perfiles: string[]; // Roles operativos autorizados
-  politicas_dispositivos?: PoliticaDispositivos;
-  dispositivos?: Record<string, DispositivoVinculado>;
-  dispositivos_autorizados?: Record<string, DispositivoVinculado>;
   direccion?: string;
+  barrio_colonia?: string;
+  calle_avenida?: string;
+  numero?: string;
+  referencia?: string;
   instagram?: string;
   facebook?: string;
   whatsapp?: string;
@@ -77,8 +48,11 @@ export interface DatosFichaNegocio {
   limite: number;
   bloqueados: Record<string, boolean>;
   perfiles: string[];
-  politicas_dispositivos?: PoliticaDispositivos;
   direccion: string;
+  barrio_colonia?: string;
+  calle_avenida?: string;
+  numero?: string;
+  referencia?: string;
   instagram: string;
   facebook: string;
   whatsapp: string;
@@ -98,7 +72,6 @@ export interface FichaMaestraTorreCentral {
   limite_dispositivos: number;
   modulos_bloqueados: Record<string, boolean>;
   perfiles_autorizados: string[];
-  politica_dispositivos: PoliticaDispositivos;
   contacto: {
     direccion?: string;
     instagram?: string;
@@ -157,11 +130,8 @@ export interface AuditoriaNegocioReporte {
     requierePurga: boolean;
   };
 
-  // Dispositivos
-  dispositivosOperativosTotal: number;
-  dispositivosAutorizadosTotal: number;
-  cuposDisponibles: number;
-  politicasDispositivos: PoliticaDispositivos;
+  // Capacidad de Terminales
+  limiteTerminales: number;
 
   // Módulos y Perfiles
   modulosBloqueados: Record<string, boolean>;

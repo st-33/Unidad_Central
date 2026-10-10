@@ -2,9 +2,13 @@ import React from 'react';
 import type { NegocioRTDB } from '../tipos';
 import { PanelReporteIntegracion } from './PanelReporteIntegracion';
 
+export type PestanaPrincipalTorre =
+  | 'DIRECTORIO'
+  | 'REPORTE_TECNICO';
+
 interface PropsDirectorioNegocios {
-  pantallaActual: 'DIRECTORIO' | 'REPORTE_TECNICO';
-  onCambiarPantalla: (pantalla: 'DIRECTORIO' | 'REPORTE_TECNICO') => void;
+  pantallaActual: PestanaPrincipalTorre;
+  onCambiarPantalla: (pantalla: PestanaPrincipalTorre) => void;
   categoriaActiva: string;
   categoriasDisponibles: readonly string[];
   negocios: readonly NegocioRTDB[];
@@ -86,21 +90,21 @@ export const DirectorioNegocios: React.FC<PropsDirectorioNegocios> = ({
         {/* Selector de Pestañas de la Primera Pantalla de la Torre */}
         <div
           id="selector-pantalla-principal"
-          className="flex items-center gap-2 mt-5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 w-full sm:w-fit"
+          className="flex items-center gap-1.5 mt-5 bg-slate-900/90 p-1.5 rounded-xl border border-slate-800 w-full flex-wrap"
         >
           <button
             id="boton-tab-directorio"
             type="button"
             onClick={() => onCambiarPantalla('DIRECTORIO')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
               pantallaActual === 'DIRECTORIO'
                 ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
             <span>🏢</span>
-            <span>Directorio de Negocios</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-slate-950/60 text-[10px] font-mono">
+            <span>Directorio</span>
+            <span className="ml-0.5 px-1.5 py-0.2 rounded bg-slate-950/60 text-[10px] font-mono">
               {negocios.length}
             </span>
           </button>
@@ -108,17 +112,14 @@ export const DirectorioNegocios: React.FC<PropsDirectorioNegocios> = ({
             id="boton-tab-orquestacion"
             type="button"
             onClick={() => onCambiarPantalla('REPORTE_TECNICO')}
-            className={`flex-1 sm:flex-none px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
+            className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 ${
               pantallaActual === 'REPORTE_TECNICO'
                 ? 'bg-cyan-600 text-white shadow-md shadow-cyan-600/30'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
             }`}
           >
             <span>📊</span>
-            <span>Reporte Técnico y Orquestación</span>
-            <span className="ml-1 px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 text-[10px] font-mono font-bold">
-              /codigo_acceso
-            </span>
+            <span>Auditoría Contrato</span>
           </button>
         </div>
       </div>

@@ -90,7 +90,7 @@ Catálogo global de capacidades disponibles.
   {
     clave: "mostrador",
     nombre: "Atención en mostrador",
-    descripcion: "Venta y atención presencial en barra o mostrador"
+    descripcion: "Venta y atención presencial en mostrador o punto de despacho"
   },
   {
     clave: "bascula",

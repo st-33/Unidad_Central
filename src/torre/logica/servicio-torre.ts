@@ -7,8 +7,6 @@ import type {
   NegocioRTDB,
   DatosFichaNegocio,
   ResultadoOperacionRTDB,
-  DispositivoVinculado,
-  PoliticaDispositivos,
   AuditoriaNegocioReporte,
   ReporteIntegracionCategoria,
   ResultadoArmonizacion,
@@ -34,6 +32,13 @@ export class ServicioTorreControl {
 
   async listarCategorias(): Promise<readonly string[]> {
     return this.repositorio.listarCategorias();
+  }
+
+  async registrarCategoria(
+    nombre: string,
+    rtdbUrl?: string
+  ): Promise<{ exito: boolean; mensaje: string; categoria: string }> {
+    return this.repositorio.registrarCategoria(nombre, rtdbUrl);
   }
 
   async registrarOActualizarNegocio(
@@ -71,8 +76,8 @@ export class ServicioTorreControl {
       const negociosActuales = await this.repositorio.listarNegociosPorCategoria(categoriaLimpia);
       const clavesExistentes = negociosActuales.map((n: NegocioRTDB) => n.id.toLowerCase());
 
-      // Determinar ID técnico determinista
-      let idFinal = idExistente ? idExistente.toLowerCase().trim() : '';
+      // Determinar ID técnico determinista respetando mayúsculas y minúsculas canónicas
+      let idFinal = idExistente ? idExistente.trim() : '';
 
       if (!idFinal) {
         const coincidencia = negociosActuales.find(
@@ -84,6 +89,7 @@ export class ServicioTorreControl {
       }
 
       if (!idFinal) {
+        const clavesExistentes = negociosActuales.map((n: NegocioRTDB) => n.id);
         idFinal = generarClaveTecnica(nombreLimpio, clavesExistentes);
       }
 
@@ -116,11 +122,6 @@ export class ServicioTorreControl {
         limite: Math.max(1, Number(datos.limite) || 1),
         bloqueados: datos.bloqueados || {},
         perfiles: datos.perfiles || [],
-        politicas_dispositivos: datos.politicas_dispositivos ?? {
-          permitir_navegador_web: true,
-          permitir_dispositivos_genericos: true,
-          validar_hardware_estricto: false,
-        },
         direccion: datos.direccion?.trim() || '',
         instagram: datos.instagram?.trim() || '',
         facebook: datos.facebook?.trim() || '',
@@ -166,90 +167,6 @@ export class ServicioTorreControl {
       return {
         exito: false,
         mensaje: msj,
-      };
-    }
-  }
-
-  async obtenerDispositivos(
-    categoria: string,
-    id: string
-  ): Promise<Record<string, DispositivoVinculado>> {
-    return this.repositorio.obtenerDispositivos(categoria, id);
-  }
-
-  async actualizarEstadoDispositivo(
-    categoria: string,
-    id: string,
-    deviceId: string,
-    estado: 'activo' | 'bloqueado'
-  ): Promise<ResultadoOperacionRTDB> {
-    try {
-      await this.repositorio.actualizarEstadoDispositivo(categoria, id, deviceId, estado);
-      return {
-        exito: true,
-        mensaje: `Dispositivo ${deviceId} marcado como ${estado}.`,
-      };
-    } catch (error) {
-      return {
-        exito: false,
-        mensaje: error instanceof Error ? error.message : 'Error al actualizar dispositivo',
-      };
-    }
-  }
-
-  async eliminarDispositivo(
-    categoria: string,
-    id: string,
-    deviceId: string
-  ): Promise<ResultadoOperacionRTDB> {
-    try {
-      await this.repositorio.eliminarDispositivo(categoria, id, deviceId);
-      return {
-        exito: true,
-        mensaje: `Dispositivo ${deviceId} desvinculado con éxito. Slot liberado.`,
-      };
-    } catch (error) {
-      return {
-        exito: false,
-        mensaje: error instanceof Error ? error.message : 'Error al desvincular dispositivo',
-      };
-    }
-  }
-
-  async autorizarNuevoDispositivo(
-    categoria: string,
-    id: string,
-    dispositivo: DispositivoVinculado
-  ): Promise<ResultadoOperacionRTDB> {
-    try {
-      await this.repositorio.autorizarNuevoDispositivo(categoria, id, dispositivo);
-      return {
-        exito: true,
-        mensaje: `Dispositivo "${dispositivo.alias || dispositivo.deviceId}" pre-autorizado con éxito.`,
-      };
-    } catch (error) {
-      return {
-        exito: false,
-        mensaje: error instanceof Error ? error.message : 'Error al pre-autorizar dispositivo',
-      };
-    }
-  }
-
-  async actualizarPoliticaDispositivos(
-    categoria: string,
-    id: string,
-    politicas: PoliticaDispositivos
-  ): Promise<ResultadoOperacionRTDB> {
-    try {
-      await this.repositorio.actualizarPoliticaDispositivos(categoria, id, politicas);
-      return {
-        exito: true,
-        mensaje: 'Políticas de dispositivos actualizadas en RTDB.',
-      };
-    } catch (error) {
-      return {
-        exito: false,
-        mensaje: error instanceof Error ? error.message : 'Error al actualizar políticas',
       };
     }
   }

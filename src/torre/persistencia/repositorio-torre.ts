@@ -14,11 +14,9 @@ import type {
   ResultadoConsolidacionCodigoAcceso,
   ResultadoPurgaLegacy,
   ResultadoArmonizacion,
-  DispositivoVinculado,
-  PoliticaDispositivos,
 } from '../tipos';
-import { moduloDispositivosRtdb } from './dispositivos-rtdb';
 import { moduloAuditoriaContrato } from './auditoria-contrato';
+import { generarNegocioNombreId, sanitizarNombreCategoria } from '../logica/generador-clave';
 
 /**
  * Contrato de interfaz para el Repositorio de Torre de Control.
@@ -31,6 +29,10 @@ export interface RepositorioTorre {
     alActualizar: (negocios: readonly NegocioRTDB[]) => void
   ): () => void;
   listarCategorias(): Promise<readonly string[]>;
+  registrarCategoria(
+    nombre: string,
+    rtdbUrl?: string
+  ): Promise<{ exito: boolean; mensaje: string; categoria: string }>;
   obtenerRutaPorCodigoAcceso(codigo: string): Promise<string | null>;
   guardarNegocio(
     datos: DatosFichaNegocio | NegocioRTDB,
@@ -43,24 +45,6 @@ export interface RepositorioTorre {
     id: string,
     codigo?: string
   ): Promise<ResultadoEliminacionRTDB | void>;
-  obtenerDispositivos(categoria: string, id: string): Promise<Record<string, DispositivoVinculado>>;
-  actualizarEstadoDispositivo(
-    categoria: string,
-    id: string,
-    deviceId: string,
-    estado: 'activo' | 'bloqueado'
-  ): Promise<void>;
-  eliminarDispositivo(categoria: string, id: string, deviceId: string): Promise<void>;
-  autorizarNuevoDispositivo(
-    categoria: string,
-    id: string,
-    dispositivo: DispositivoVinculado
-  ): Promise<void>;
-  actualizarPoliticaDispositivos(
-    categoria: string,
-    id: string,
-    politicas: PoliticaDispositivos
-  ): Promise<void>;
   auditarNegocio(categoria: string, id: string): Promise<AuditoriaNegocioReporte>;
   auditarCategoria(categoria: string): Promise<ReporteIntegracionCategoria>;
   consolidarContratoCodigoAcceso(): Promise<ResultadoConsolidacionCodigoAcceso>;
@@ -70,42 +54,23 @@ export interface RepositorioTorre {
 
 /**
  * Repositorio Oficial de Torre de Control para RTDB.
- * Orquesta persistencia de Negocios y delega dispositivos y auditoría.
+ * Orquesta persistencia de Negocios y auditoría de contratos.
  */
 export class RepositorioTorreRtdb implements RepositorioTorre {
   readonly nodoCodigoAcceso = 'codigo_acceso';
   readonly nodoLegacyAccessCodes = 'access_codes';
 
   private normalizarNodoCategoria(categoria: string): string {
-    const limpia = categoria.trim();
+    const limpia = sanitizarNombreCategoria(categoria);
     if (!limpia) return 'Marisquerias';
-    return limpia.charAt(0).toUpperCase() + limpia.slice(1);
+    return limpia;
   }
 
   /**
-   * Genera el ID técnico corto (máx 3 letras) determinísticamente a partir del nombre comercial.
+   * Genera el ID canónico de negocio a partir de su nombre comercial.
    */
-  private generarIdTecnico(nombre: string): string {
-    const limpio = nombre
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9\s]/g, '')
-      .trim();
-
-    const palabras = limpio.split(/\s+/).filter(Boolean);
-
-    if (palabras.length === 1) {
-      return palabras[0].substring(0, 3);
-    }
-    if (palabras.length === 2) {
-      return (palabras[0].substring(0, 1) + palabras[1].substring(0, 2)).substring(0, 3);
-    }
-    return palabras
-      .slice(0, 3)
-      .map((p) => p[0])
-      .join('')
-      .substring(0, 3);
+  private generarIdTecnico(nombre: string, existentes: readonly string[] = []): string {
+    return generarNegocioNombreId(nombre, existentes);
   }
 
   /**
@@ -192,6 +157,68 @@ export class RepositorioTorreRtdb implements RepositorioTorre {
       return categorias.sort();
     } catch {
       return ['Marisquerias'];
+    }
+  }
+
+  /**
+   * Registra una nueva categoría escribiendo su nodo raíz en la RTDB destino
+   * y respaldándola en la RTDB central de Torre de Control.
+   */
+  async registrarCategoria(
+    nombre: string,
+    rtdbUrl?: string
+  ): Promise<{ exito: boolean; mensaje: string; categoria: string }> {
+    const categoriaSanitizada = sanitizarNombreCategoria(nombre);
+    if (!categoriaSanitizada) {
+      return {
+        exito: false,
+        mensaje: 'El nombre de la categoría es inválido.',
+        categoria: '',
+      };
+    }
+
+    const urlDestino =
+      rtdbUrl && rtdbUrl.trim()
+        ? rtdbUrl.trim().replace(/\/+$/, '')
+        : URL_RTDB_NEGOCIOS;
+
+    try {
+      // 1. Escribir nodo padre en la URL destino (RTDB de la categoría)
+      const res = await fetch(`${urlDestino}/.json`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [categoriaSanitizada]: {} }),
+      });
+      if (!res.ok) {
+        throw new Error(`Fallo HTTP al crear nodo en ${urlDestino}: ${res.statusText}`);
+      }
+
+      // 2. Registrar en la RTDB Central de Torre de Control
+      await fetch(
+        `${URL_RTDB_CENTRAL}/torre_control/categorias/${encodeURIComponent(categoriaSanitizada)}.json`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre: categoriaSanitizada,
+            rtdb_url: urlDestino,
+            creada_en: new Date().toISOString(),
+          }),
+        }
+      );
+
+      return {
+        exito: true,
+        mensaje: `Categoría "${categoriaSanitizada}" registrada con éxito en ${urlDestino}`,
+        categoria: categoriaSanitizada,
+      };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      return {
+        exito: false,
+        mensaje: `Error al registrar categoría: ${errorMsg}`,
+        categoria: categoriaSanitizada,
+      };
     }
   }
 
@@ -292,49 +319,27 @@ export class RepositorioTorreRtdb implements RepositorioTorre {
       }
     }
 
-    const payloadNegocio: Record<string, unknown> = {
-      id,
-      nombre: datos.nombre,
-      categoria: nodoCat,
+    // Cascarón Canónico Operativo para la RTDB de la Categoría (gobernanza limpia, cero datos de contacto)
+    const cascaronOperativo: Record<string, unknown> = {
       activo: datos.activo,
       codigo,
       limite: datos.limite,
+      perfiles: datos.perfiles && datos.perfiles.length > 0
+        ? datos.perfiles
+        : ['Administrador', 'Operador', 'Supervisor'],
       bloqueados: datos.bloqueados || {},
-      perfiles: datos.perfiles || [],
-      direccion: datos.direccion || '',
-      instagram: datos.instagram || '',
-      facebook: datos.facebook || '',
-      whatsapp: datos.whatsapp || '',
-      celular: datos.celular || '',
-      correo: datos.correo || '',
       fecha_actualizacion: new Date().toISOString(),
     };
 
-    if (datos.politicas_dispositivos) {
-      payloadNegocio.politicas_dispositivos = datos.politicas_dispositivos;
-    } else if (datosPrevios.politicas_dispositivos) {
-      payloadNegocio.politicas_dispositivos = datosPrevios.politicas_dispositivos;
-    } else {
-      payloadNegocio.politicas_dispositivos = {
-        permitir_navegador_web: true,
-        permitir_dispositivos_genericos: true,
-        validar_hardware_estricto: false,
-      };
-    }
-
-    if (datosPrevios.dispositivos) payloadNegocio.dispositivos = datosPrevios.dispositivos;
-    if (datosPrevios.dispositivos_autorizados) {
-      payloadNegocio.dispositivos_autorizados = datosPrevios.dispositivos_autorizados;
-    }
     if (datosPrevios.fecha_creacion) {
-      payloadNegocio.fecha_creacion = datosPrevios.fecha_creacion;
+      cascaronOperativo.fecha_creacion = datosPrevios.fecha_creacion;
     } else {
-      payloadNegocio.fecha_creacion = new Date().toISOString();
+      cascaronOperativo.fecha_creacion = new Date().toISOString();
     }
 
-    // 3. Construir actualizaciones atómicas
+    // 3. Construir actualizaciones atómicas para la RTDB de Categorías
     const updatesOperativos: Record<string, unknown> = {
-      [`${nodoCat}/${id}`]: payloadNegocio,
+      [`${nodoCat}/${id}`]: cascaronOperativo,
       [`${this.nodoCodigoAcceso}/${codigo}`]: rutaDestinoEsperada,
     };
 
@@ -365,15 +370,38 @@ export class RepositorioTorreRtdb implements RepositorioTorre {
       }
     }
 
-    // 5. Impactar RTDB Central (respaldo maestro)
+    // 5. Impactar RTDB Central de Torre de Control (Expediente Maestro + Directorio IA)
     try {
-      const updatesCentral: Record<string, unknown> = {
-        [`torre_control/negocios/${id}`]: {
-          ...payloadNegocio,
-          rtdb_origen: URL_RTDB_NEGOCIOS,
-          nodo_operativo: rutaDestinoEsperada,
-          sincronizado_en: new Date().toISOString(),
+      const fichaMaestraCentral: Record<string, unknown> = {
+        id,
+        nombre_comercial: datos.nombre,
+        categoria: nodoCat,
+        codigo_acceso: codigo,
+        activo: datos.activo,
+        limite_dispositivos: datos.limite,
+        bloqueados: datos.bloqueados || {},
+        perfiles: cascaronOperativo.perfiles,
+        contacto: {
+          instagram: datos.instagram || '',
+          facebook: datos.facebook || '',
+          whatsapp: datos.whatsapp || '',
+          celular: datos.celular || '',
+          correo: datos.correo || '',
         },
+        direccion: {
+          barrio_colonia: (datos as DatosFichaNegocio).barrio_colonia || '',
+          calle_avenida: (datos as DatosFichaNegocio).calle_avenida || '',
+          numero: (datos as DatosFichaNegocio).numero || '',
+          referencia: (datos as DatosFichaNegocio).referencia || '',
+          direccion_completa: datos.direccion || '',
+        },
+        rtdb_origen: URL_RTDB_NEGOCIOS,
+        nodo_operativo: rutaDestinoEsperada,
+        sincronizado_en: new Date().toISOString(),
+      };
+
+      const updatesCentral: Record<string, unknown> = {
+        [`torre_control/negocios/${id}`]: fichaMaestraCentral,
         [`torre_control/indice_codigos/${codigo}`]: {
           idNegocio: id,
           categoria: nodoCat,
@@ -474,39 +502,6 @@ export class RepositorioTorreRtdb implements RepositorioTorre {
 
   // --- DELEGACIONES A MÓDULOS ESPECIALIZADOS ---
 
-  obtenerDispositivos(categoria: string, id: string): Promise<Record<string, DispositivoVinculado>> {
-    return moduloDispositivosRtdb.obtenerDispositivos(categoria, id);
-  }
-
-  actualizarEstadoDispositivo(
-    categoria: string,
-    id: string,
-    deviceId: string,
-    estado: 'activo' | 'bloqueado'
-  ): Promise<void> {
-    return moduloDispositivosRtdb.actualizarEstadoDispositivo(categoria, id, deviceId, estado);
-  }
-
-  eliminarDispositivo(categoria: string, id: string, deviceId: string): Promise<void> {
-    return moduloDispositivosRtdb.eliminarDispositivo(categoria, id, deviceId);
-  }
-
-  autorizarNuevoDispositivo(
-    categoria: string,
-    id: string,
-    dispositivo: DispositivoVinculado
-  ): Promise<void> {
-    return moduloDispositivosRtdb.autorizarNuevoDispositivo(categoria, id, dispositivo);
-  }
-
-  actualizarPoliticaDispositivos(
-    categoria: string,
-    id: string,
-    politicas: PoliticaDispositivos
-  ): Promise<void> {
-    return moduloDispositivosRtdb.actualizarPoliticaDispositivos(categoria, id, politicas);
-  }
-
   auditarNegocio(categoria: string, id: string): Promise<AuditoriaNegocioReporte> {
     return moduloAuditoriaContrato.auditarNegocio(categoria, id);
   }
@@ -567,11 +562,6 @@ export class RepositorioTorreRtdb implements RepositorioTorre {
         limite,
         bloqueados,
         perfiles,
-        politicas_dispositivos: obj.politicas_dispositivos as PoliticaDispositivos | undefined,
-        dispositivos: obj.dispositivos as Record<string, DispositivoVinculado> | undefined,
-        dispositivos_autorizados: obj.dispositivos_autorizados as
-          | Record<string, DispositivoVinculado>
-          | undefined,
         direccion: typeof obj.direccion === 'string' ? obj.direccion : '',
         instagram: typeof obj.instagram === 'string' ? obj.instagram : '',
         facebook: typeof obj.facebook === 'string' ? obj.facebook : '',

@@ -39,6 +39,17 @@ class RepositorioTorreMemoria implements RepositorioTorre {
     return keys;
   }
 
+  async registrarCategoria(
+    nombre: string,
+    _rtdbUrl?: string
+  ): Promise<{ exito: boolean; mensaje: string; categoria: string }> {
+    const cat = nombre.trim();
+    if (!this.negociosPorCat.has(cat.toLowerCase())) {
+      this.negociosPorCat.set(cat.toLowerCase(), new Map());
+    }
+    return { exito: true, mensaje: `Categoría ${cat} registrada`, categoria: cat };
+  }
+
   async obtenerRutaPorCodigoAcceso(codigo: string): Promise<string | null> {
     return this.indiceCodigoAcceso.get(codigo.trim().toUpperCase()) ?? null;
   }
@@ -86,18 +97,6 @@ class RepositorioTorreMemoria implements RepositorioTorre {
     }
   }
 
-  async obtenerDispositivos(): Promise<Record<string, never>> {
-    return {};
-  }
-
-  async actualizarEstadoDispositivo(): Promise<void> {}
-
-  async eliminarDispositivo(): Promise<void> {}
-
-  async autorizarNuevoDispositivo(): Promise<void> {}
-
-  async actualizarPoliticaDispositivos(): Promise<void> {}
-
   async auditarNegocio(categoria: string, id: string): Promise<AuditoriaNegocioReporte> {
     const mapa = this.negociosPorCat.get(categoria.toLowerCase());
     const neg = mapa?.get(id.toLowerCase());
@@ -114,20 +113,13 @@ class RepositorioTorreMemoria implements RepositorioTorre {
       rutaEsperada: ruta,
       activo: neg?.activo ?? true,
       limiteDispositivos: neg?.limite || 1,
+      limiteTerminales: neg?.limite || 1,
       indiceCodigoAcceso: { existe: coincide, rutaApunta: rutaIndex || null, coincide },
       contratoUnicoValido: coincide,
       estadoLegacyAccessCodes: {
         presenteEnRTDB: false,
         rutaApunta: null,
         requierePurga: false,
-      },
-      dispositivosOperativosTotal: 0,
-      dispositivosAutorizadosTotal: 0,
-      cuposDisponibles: neg?.limite || 1,
-      politicasDispositivos: {
-        permitir_navegador_web: true,
-        permitir_dispositivos_genericos: true,
-        validar_hardware_estricto: false,
       },
       modulosBloqueados: {},
       perfilesAutorizados: ['Administrador'],
@@ -217,22 +209,19 @@ class RepositorioTorreMemoria implements RepositorioTorre {
   }
 }
 
-test('Torre de Control — Generación Determinista de Clave Técnica (3 caracteres)', async (t) => {
-  await t.test('Genera claves de máximo 3 caracteres', () => {
+test('Torre de Control — Generación Canónica de Identificador de Negocio [negocio_nombre_id]', async (t) => {
+  await t.test('Genera identificadores descriptivos sin espacios ni acentos', () => {
     const clave1 = generarClaveTecnica('Marisquería Puerto Libres');
-    assert.equal(clave1, 'mpl');
-    assert.ok(clave1.length <= 3);
+    assert.equal(clave1, 'Marisqueria_Puerto_Libres');
 
     const clave2 = generarClaveTecnica('El Arquitecto');
-    assert.equal(clave2, 'ear');
-    assert.ok(clave2.length <= 3);
+    assert.equal(clave2, 'El_Arquitecto');
   });
 
-  await t.test('Resuelve colisiones de claves respetando 3 caracteres', () => {
-    const existentes = ['mpl'];
-    const clave = generarClaveTecnica('Marisquería Playa Linda', existentes);
-    assert.equal(clave, 'mp1');
-    assert.ok(clave.length <= 3);
+  await t.test('Resuelve colisiones de claves mediante sufijo numérico determinista', () => {
+    const existentes = ['Marisqueria_Puerto_Libres'];
+    const clave = generarClaveTecnica('Marisquería Puerto Libres', existentes);
+    assert.equal(clave, 'Marisqueria_Puerto_Libres_2');
   });
 });
 
@@ -264,19 +253,19 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
   await t.test('Registra negocio en /{Categoria}/{id} y crea puntero en codigo_acceso', async () => {
     const res = await servicio.registrarOActualizarNegocio(datosNegocio1);
     assert.ok(res.exito);
-    assert.equal(res.idGenerado, 'mpl');
-    assert.equal(res.rutaRTDB, 'Marisquerias/mpl');
+    assert.equal(res.idGenerado, 'Marisqueria_Puerto_Libres');
+    assert.equal(res.rutaRTDB, 'Marisquerias/Marisqueria_Puerto_Libres');
 
     // Verificar en nodo de categoría
     const enCat = await repo.listarNegociosPorCategoria('Marisquerias');
     assert.equal(enCat.length, 1);
-    assert.equal(enCat[0].id, 'mpl');
+    assert.equal(enCat[0].id, 'Marisqueria_Puerto_Libres');
     assert.equal(enCat[0].nombre, 'Marisquería Puerto Libres');
     assert.equal(enCat[0].codigo, 'PL2026-24');
 
     // Verificar puntero directo O(1)
     const rutaPuntero = await repo.obtenerRutaPorCodigoAcceso('PL2026-24');
-    assert.equal(rutaPuntero, 'Marisquerias/mpl');
+    assert.equal(rutaPuntero, 'Marisquerias/Marisqueria_Puerto_Libres');
   });
 
   await t.test('Rechaza registrar un segundo negocio con el mismo código de acceso (unicidad)', async () => {
@@ -314,7 +303,7 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
 
     const res = await servicio.registrarOActualizarNegocio(
       datosActualizados,
-      'mpl',
+      'Marisqueria_Puerto_Libres',
       'PL2026-24'
     );
     assert.ok(res.exito);
@@ -325,7 +314,7 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
 
     // Nuevo puntero debe existir
     const rutaNueva = await repo.obtenerRutaPorCodigoAcceso('PL2027-25');
-    assert.equal(rutaNueva, 'Marisquerias/mpl');
+    assert.equal(rutaNueva, 'Marisquerias/Marisqueria_Puerto_Libres');
   });
 
   await t.test('Permite mover negocio a otra categoría sin dejar nodos huérfanos', async () => {
@@ -337,7 +326,7 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
 
     const res = await servicio.registrarOActualizarNegocio(
       datosTraslado,
-      'mpl',
+      'Marisqueria_Puerto_Libres',
       'PL2027-25',
       'Marisquerias' // Categoría previa
     );
@@ -350,15 +339,15 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
     // En Restaurantes debe estar
     const enRestaurantes = await repo.listarNegociosPorCategoria('Restaurantes');
     assert.equal(enRestaurantes.length, 1);
-    assert.equal(enRestaurantes[0].id, 'mpl');
+    assert.equal(enRestaurantes[0].id, 'Marisqueria_Puerto_Libres');
 
     // Puntero debe apuntar a la nueva categoría
     const rutaNueva = await repo.obtenerRutaPorCodigoAcceso('PL2027-25');
-    assert.equal(rutaNueva, 'Restaurantes/mpl');
+    assert.equal(rutaNueva, 'Restaurantes/Marisqueria_Puerto_Libres');
   });
 
   await t.test('Retira negocio y elimina ambos nodos (categoría y código de acceso)', async () => {
-    const res = await servicio.eliminarNegocio('Restaurantes', 'mpl', 'PL2027-25');
+    const res = await servicio.eliminarNegocio('Restaurantes', 'Marisqueria_Puerto_Libres', 'PL2027-25');
     assert.ok(res.exito);
 
     const enRestaurantes = await repo.listarNegociosPorCategoria('Restaurantes');
@@ -376,7 +365,7 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
       codigo: 'MAR2026-01',
     });
 
-    const auditoria = await servicio.auditarNegocio('Marisquerias', 'mpl');
+    const auditoria = await servicio.auditarNegocio('Marisquerias', 'Marisqueria_Puerto_Libres');
     assert.equal(auditoria.codigoAcceso, 'MAR2026-01');
     assert.equal(auditoria.contratoUnicoValido, true);
     assert.equal(auditoria.indiceCodigoAcceso.existe, true);
@@ -385,7 +374,7 @@ test('Torre de Control — Contrato Único de Resolución (/codigo_acceso) y Ges
 
     // Flujo normativo de resolución esperado:
     const rutaResuelta = await repo.obtenerRutaPorCodigoAcceso('MAR2026-01');
-    assert.equal(rutaResuelta, 'Marisquerias/mpl');
+    assert.equal(rutaResuelta, 'Marisquerias/Marisqueria_Puerto_Libres');
   });
 
   await t.test('Auditoría a nivel de Categoría: evalúa cumplimiento colectivo e instruye al modelo', async () => {

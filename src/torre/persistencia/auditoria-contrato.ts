@@ -7,7 +7,6 @@ import type {
   ResultadoPurgaLegacy,
   ResultadoArmonizacion,
   ItemNegocioCategoria,
-  PoliticaDispositivos,
   NegocioRTDB,
 } from '../tipos';
 
@@ -106,24 +105,6 @@ export class ModuloAuditoriaContrato {
       rutaCodigoAcceso?.toLowerCase() === rutaEsperada.toLowerCase();
     const contratoUnicoValido = existeCodigoAcceso && coincideCodigo;
 
-    // Dispositivos y cupos
-    const dispOperativos =
-      negocioRaw?.dispositivos && typeof negocioRaw.dispositivos === 'object'
-        ? Object.keys(negocioRaw.dispositivos as object).length
-        : 0;
-    const dispAutorizados =
-      negocioRaw?.dispositivos_autorizados &&
-      typeof negocioRaw.dispositivos_autorizados === 'object'
-        ? Object.keys(negocioRaw.dispositivos_autorizados as object).length
-        : 0;
-
-    const politicas: PoliticaDispositivos =
-      (negocioRaw?.politicas_dispositivos as PoliticaDispositivos) ?? {
-        permitir_navegador_web: true,
-        permitir_dispositivos_genericos: true,
-        validar_hardware_estricto: false,
-      };
-
     const modulosBloqueados =
       negocioRaw?.bloqueados && typeof negocioRaw.bloqueados === 'object'
         ? (negocioRaw.bloqueados as Record<string, boolean>)
@@ -171,39 +152,6 @@ export class ModuloAuditoriaContrato {
       });
     }
 
-    if (politicas.permitir_navegador_web && politicas.permitir_dispositivos_genericos) {
-      hallazgos.push({
-        tipo: 'exito',
-        titulo: 'Políticas Flexibles (Expo Web / Browsers)',
-        descripcion:
-          'Permite conexiones de navegadores web y dispositivos genéricos (brand: unknown). Los terminales no serán rechazados por chequeo estricto de hardware.',
-      });
-    } else if (politicas.validar_hardware_estricto) {
-      hallazgos.push({
-        tipo: 'advertencia',
-        titulo: 'Validación de Hardware Estricta Activada',
-        descripcion:
-          'Se exige hardware nativo reconocido. Terminales web o emuladores serán rechazados con error de dispositivo genérico.',
-      });
-    }
-
-    const ocupacion = Math.max(dispOperativos, dispAutorizados);
-    const cupos = Math.max(0, limite - ocupacion);
-
-    if (cupos > 0) {
-      hallazgos.push({
-        tipo: 'info',
-        titulo: `Cupos de Terminales: ${cupos} disponibles`,
-        descripcion: `Actualmente hay ${ocupacion} dispositivo(s) vinculado(s) de un límite contratado de ${limite}.`,
-      });
-    } else {
-      hallazgos.push({
-        tipo: 'advertencia',
-        titulo: 'Límite de Terminales Ocupado',
-        descripcion: `Se han ocupado todos los ${limite} cupos permitidos. Para registrar otro dispositivo se debe ampliar el límite o desvincular uno previo.`,
-      });
-    }
-
     return {
       idNegocio: idLimpio,
       nombreNegocio: nombre,
@@ -212,6 +160,7 @@ export class ModuloAuditoriaContrato {
       rutaEsperada,
       activo,
       limiteDispositivos: limite,
+      limiteTerminales: limite,
       indiceCodigoAcceso: {
         existe: existeCodigoAcceso,
         rutaApunta: rutaCodigoAcceso,
@@ -223,10 +172,6 @@ export class ModuloAuditoriaContrato {
         rutaApunta: rutaAccessCodes,
         requierePurga: existeAccessCodes,
       },
-      dispositivosOperativosTotal: dispOperativos,
-      dispositivosAutorizadosTotal: dispAutorizados,
-      cuposDisponibles: cupos,
-      politicasDispositivos: politicas,
       modulosBloqueados,
       perfilesAutorizados,
       hallazgos,
@@ -316,21 +261,20 @@ export class ModuloAuditoriaContrato {
         ? `Nodo legacy /access_codes aún presente con ${keysLegacy.length} residuo(s) (requiere purga).`
         : `Nodo legacy /access_codes completamente purgado de RTDB (base de datos limpia).`,
       `Backend de Torre de Control reconfigurado para operar con contrato único exclusivo (/codigo_acceso).`,
-      `Políticas de dispositivos configuradas para admitir Expo Web y navegadores genéricos.`,
+      `Estructura canónica de negocio saneada y gobernanza centralizada.`,
     ];
 
     const pendientesModeloCategoria: string[] = [
       `Eliminar cualquier llamada a '/access_codes' en el repositorio de la categoría ${nodoCat}.`,
       `En el flujo de acceso (Login), consultar ref(db, 'codigo_acceso/' + codigo) para resolver la ruta O(1).`,
-      `Garantizar generación de deviceId persistente con prefijo 'ADI-web-' en navegadores para evitar rechazo por hardware 'unknown'.`,
-      `Escuchar los nodos en tiempo real '${nodoCat}/\${idNegocio}/activo' y 'dispositivos/\${deviceId}/estado'.`,
+      `Escuchar los nodos en tiempo real '${nodoCat}/\${idNegocio}/activo' para reaccionar ante suspensiones.`,
     ];
 
     const instruccionModeloCategoria = `# Instrucción Técnica Oficial de Torre de Control para el Modelo de la Categoría: ${nodoCat}
 
 Estimado agente/modelo responsable del repositorio de **${nodoCat}**:
 
-La Unidad Central y Torre de Control ha definido y consolidado la arquitectura técnica de integración. Debes acoplar tu aplicación cumpliendo los siguientes puntos:
+La Unidad Central y Torre de Control ha definido y consolidado la arquitectura técnica de integración limpia. Debes acoplar tu aplicación cumpliendo los siguientes puntos:
 
 ### 1. Fuente Contractual Única: /codigo_acceso
 - **Ruta Oficial de Resolución:** \`/codigo_acceso/{CODIGO}\` (en mayúsculas).
@@ -352,25 +296,9 @@ export async function resolverNegocioPorCodigo(codigo: string, db: any): Promise
 }
 \`\`\`
 
-### 3. Resiliencia en Expo Web y Emuladores (Brand "unknown")
-- La Torre de Control ya tiene configuradas las políticas \`permitir_navegador_web: true\` y \`permitir_dispositivos_genericos: true\`.
-- Tu app no debe fallar con error \`ADI-unknown\`. Genera un identificador de terminal consistente y persistente:
-\`\`\`typescript
-export function obtenerDeviceIdResiliente(): string {
-  const clave = '@adi_device_id';
-  let devId = localStorage.getItem(clave);
-  if (!devId) {
-    devId = \`ADI-web-\${Math.random().toString(36).substring(2, 9).toUpperCase()}-\${Date.now()}\`;
-    localStorage.setItem(clave, devId);
-  }
-  return devId;
-}
-\`\`\`
-
-### 4. Escucha de Estado Operativo y Suspensión
+### 3. Escucha de Estado Operativo y Módulos
 - Escucha en tiempo real la ruta del negocio \`\${rutaNegocio}/activo\` para bloquear el acceso si el negocio es desactivado.
-- Escucha \`\${rutaNegocio}/dispositivos/\${deviceId}/estado\` para reaccionar ante bloqueos de terminal.
-- Oculta los módulos que figuren como \`true\` en el objeto \`\${rutaNegocio}/bloqueados\` (Caja, Cocina, Mesero, Reparto).
+- Oculta los módulos que figuren como \`true\` en el objeto \`\${rutaNegocio}/bloqueados\` (Operación, Inventario, Catálogo, Reparto).
 
 **Nota de Gobernanza:** No agregues herramientas administrativas de Torre de Control en tu app. Tu aplicación es cliente operativo puro.`;
 

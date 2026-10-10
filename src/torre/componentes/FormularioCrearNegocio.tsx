@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { MODULOS_SISTEMA, type DatosFichaNegocio, type PoliticaDispositivos } from '../tipos';
+import { MODULOS_SISTEMA, type DatosFichaNegocio } from '../tipos';
 import { ToggleSwitch } from './ToggleSwitch';
+import { generarNegocioNombreId } from '../logica/generador-clave';
 
 interface PropsFormularioCrearNegocio {
   categoriaInicial: string;
@@ -23,26 +24,25 @@ export const FormularioCrearNegocio: React.FC<PropsFormularioCrearNegocio> = ({
   const [formCategoria, setFormCategoria] = useState(categoriaInicial || 'Marisquerias');
   const [formActivo, setFormActivo] = useState(true);
   const [formCodigo, setFormCodigo] = useState('');
-  const [formLimite, setFormLimite] = useState('3');
+  const [formLimite, setFormLimite] = useState('5');
   const [formModulosBloqueados, setFormModulosBloqueados] = useState<Record<string, boolean>>({});
   const [formPerfiles, setFormPerfiles] = useState<string[]>([
     'Administrador',
-    'Cajero',
-    'Comandero',
-    'Cocinero',
+    'Operador',
+    'Supervisor',
   ]);
   const [nuevoPerfilTexto, setNuevoPerfilTexto] = useState('');
-  const [formDireccion, setFormDireccion] = useState('');
+  const [formBarrioColonia, setFormBarrioColonia] = useState('');
+  const [formCalleAvenida, setFormCalleAvenida] = useState('');
+  const [formNumero, setFormNumero] = useState('');
+  const [formReferencia, setFormReferencia] = useState('');
   const [formInstagram, setFormInstagram] = useState('');
   const [formFacebook, setFormFacebook] = useState('');
   const [formWhatsapp, setFormWhatsapp] = useState('');
   const [formCelular, setFormCelular] = useState('');
   const [formCorreo, setFormCorreo] = useState('');
-  const [formPoliticas, setFormPoliticas] = useState<PoliticaDispositivos>({
-    permitir_navegador_web: true,
-    permitir_dispositivos_genericos: true,
-    validar_hardware_estricto: false,
-  });
+
+  const negocioNombreIdPreview = generarNegocioNombreId(formNombre);
 
   const alternarBloqueoModulo = (modulo: string) => {
     setFormModulosBloqueados((prev) => ({
@@ -76,16 +76,28 @@ export const FormularioCrearNegocio: React.FC<PropsFormularioCrearNegocio> = ({
       return;
     }
 
+    const direccionCompuesta = [
+      formCalleAvenida.trim() ? `Calle/Av: ${formCalleAvenida.trim()}` : '',
+      formNumero.trim() ? `No: ${formNumero.trim()}` : '',
+      formBarrioColonia.trim() ? `Col: ${formBarrioColonia.trim()}` : '',
+      formReferencia.trim() ? `Ref: ${formReferencia.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
     const datos: DatosFichaNegocio = {
       nombre: formNombre.trim(),
       categoria: formCategoria.trim() || 'Marisquerias',
       activo: formActivo,
       codigo: formCodigo.trim().toUpperCase().replace(/\s+/g, ''),
-      limite: parseInt(formLimite, 10) || 3,
+      limite: parseInt(formLimite, 10) || 5,
       bloqueados: formModulosBloqueados,
       perfiles: formPerfiles,
-      politicas_dispositivos: formPoliticas,
-      direccion: formDireccion.trim(),
+      direccion: direccionCompuesta,
+      barrio_colonia: formBarrioColonia.trim(),
+      calle_avenida: formCalleAvenida.trim(),
+      numero: formNumero.trim(),
+      referencia: formReferencia.trim(),
       instagram: formInstagram.trim(),
       facebook: formFacebook.trim(),
       whatsapp: formWhatsapp.trim(),
@@ -152,9 +164,17 @@ export const FormularioCrearNegocio: React.FC<PropsFormularioCrearNegocio> = ({
               placeholder="Ej. Marisquería Puerto Libres, El Arquitecto"
               className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all font-sans font-bold text-lg"
             />
-            <p className="text-xs text-slate-500">
-              El nombre comercial se guardará exactamente con las mayúsculas y acentos introducidos. El ID técnico (máx 3 caracteres) se genera internamente de forma determinista.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="text-slate-400 font-mono">
+                Identificador Canónico RTDB [negocio_nombre_id]:{' '}
+                <strong className="text-emerald-400 font-bold bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-800/60">
+                  {negocioNombreIdPreview}
+                </strong>
+              </span>
+              <span className="text-slate-500">
+                Ruta: <span className="font-mono text-cyan-400">/{formCategoria}/{negocioNombreIdPreview}</span>
+              </span>
+            </div>
           </div>
 
           {/* SELECCIÓN DE CATEGORÍA */}
@@ -213,43 +233,6 @@ export const FormularioCrearNegocio: React.FC<PropsFormularioCrearNegocio> = ({
                   placeholder="3"
                   className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 font-mono"
                 />
-              </div>
-            </div>
-
-            {/* Políticas iniciales de dispositivos */}
-            <div className="mt-6 pt-4 border-t border-slate-800 space-y-3">
-              <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wide">
-                Políticas de Conexión de Terminales:
-              </h4>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formPoliticas.permitir_navegador_web}
-                    onChange={(e) =>
-                      setFormPoliticas((prev) => ({
-                        ...prev,
-                        permitir_navegador_web: e.target.checked,
-                      }))
-                    }
-                    className="rounded bg-slate-950 border-slate-700 text-cyan-500"
-                  />
-                  Permitir Navegador Web (Chrome/Safari)
-                </label>
-                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formPoliticas.permitir_dispositivos_genericos}
-                    onChange={(e) =>
-                      setFormPoliticas((prev) => ({
-                        ...prev,
-                        permitir_dispositivos_genericos: e.target.checked,
-                      }))
-                    }
-                    className="rounded bg-slate-950 border-slate-700 text-cyan-500"
-                  />
-                  Permitir Genéricos/Expo (brand: unknown)
-                </label>
               </div>
             </div>
           </div>
@@ -418,18 +401,73 @@ export const FormularioCrearNegocio: React.FC<PropsFormularioCrearNegocio> = ({
           </div>
 
           {/* BLOQUE DIRECCIÓN */}
-          <div id="bloque-direccion-crear" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg">
-            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-              <span className="w-6 h-px bg-slate-700"></span> Dirección
-            </h3>
-            <input
-              id="input-direccion-crear"
-              type="text"
-              value={formDireccion}
-              onChange={(e) => setFormDireccion(e.target.value)}
-              placeholder="Calle, número, colonia o referencia física"
-              className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 text-sm"
-            />
+          <div id="bloque-direccion-crear" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg space-y-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-1 flex items-center gap-2">
+                <span className="w-6 h-px bg-slate-700"></span> Dirección Física (Ficha Maestra Central)
+              </h3>
+              <p className="text-xs text-slate-500">
+                Datos geográficos estructurados para la Unidad Central e IA de soporte.
+              </p>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="input-calle-avenida-crear" className="block text-xs font-bold text-slate-400 mb-1">
+                  Calle o Avenida
+                </label>
+                <input
+                  id="input-calle-avenida-crear"
+                  type="text"
+                  value={formCalleAvenida}
+                  onChange={(e) => setFormCalleAvenida(e.target.value)}
+                  placeholder="Ej. Costera Miguel Alemán"
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="input-numero-crear" className="block text-xs font-bold text-slate-400 mb-1">
+                  Número (Ext. / Int.)
+                </label>
+                <input
+                  id="input-numero-crear"
+                  type="text"
+                  value={formNumero}
+                  onChange={(e) => setFormNumero(e.target.value)}
+                  placeholder="Ej. 100 Local B"
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="input-barrio-colonia-crear" className="block text-xs font-bold text-slate-400 mb-1">
+                  Barrio / Colonia
+                </label>
+                <input
+                  id="input-barrio-colonia-crear"
+                  type="text"
+                  value={formBarrioColonia}
+                  onChange={(e) => setFormBarrioColonia(e.target.value)}
+                  placeholder="Ej. Fracc. Magallanes"
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="input-referencia-crear" className="block text-xs font-bold text-slate-400 mb-1">
+                  Referencia Física
+                </label>
+                <input
+                  id="input-referencia-crear"
+                  type="text"
+                  value={formReferencia}
+                  onChange={(e) => setFormReferencia(e.target.value)}
+                  placeholder="Ej. Frente a la glorieta de la Diana"
+                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Botón de Enviar a Matriz */}

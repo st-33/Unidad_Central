@@ -274,15 +274,24 @@ npm run check-types
 
 ---
 
-## Conclusión
+## Conclusión y Purga de Dominio Operativo (El Mariscal)
 
-✅ **Central está operativo y listo para el ecosistema ADI**
+✅ **Torre de Control es exclusivamente la Autoridad de Gobernanza y el Mariscal Central**
 
-La jerarquía CAPACIDAD → CATEGORÍA → NEGOCIO está consolidada, validada y libre de inconsistencias. Los contratos de exportación permiten a otros repositorios consumir configuración estructural sin que Central invada dominios operativos.
+Se eliminaron completamente los módulos de:
+- **Tríada de RTDB & Carga**: Eliminados todos los scripts destructivos y de sobreescritura hardcodeada cruzada.
+- **Menú Canónico / Administrativo**: Retirado el editor y almacenamiento de cartas/menús, delegando esta función puramente a las aplicaciones de gestión del negocio.
+- **Personal y Nómina**: Eliminados esquemas salariales y administración de empleados.
 
-**Unidad Central cumple su rol como autoridad administrativa del ecosistema.**
+La Torre de Control se mantiene concentrada y acotada estrictamente a su rol:
+- **Directorio de Negocios**: Registro, edición y catálogo por categoría (`/{categoria}/{idNegocio}`).
+- **Creación y Alta**: Registro de nuevas categorías y nuevos negocios con código de acceso único.
+- **Auditoría de Contratos e Integración**: Verificación del contrato normativo `/codigo_acceso`, resolución de claves y emisión de directivas de compatibilidad para los clientes y modelos de las aplicaciones operativas.
+- **Gobernanza de Dispositivos**: Políticas de vinculación, autorización y estado de terminales.
+
+**Unidad Central ejerce exclusivamente su autoridad como Torre de Control y Mariscal.**
 
 ---
 
-**Última actualización**: 2026-09-06  
+**Última actualización**: 2026-09-17  
 **Mantenedor**: Equipo ADI Ecosystem

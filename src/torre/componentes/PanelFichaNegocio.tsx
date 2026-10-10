@@ -3,52 +3,33 @@ import {
   MODULOS_SISTEMA,
   type NegocioRTDB,
   type DatosFichaNegocio,
-  type DispositivoVinculado,
-  type PoliticaDispositivos,
 } from '../tipos';
 import { ToggleSwitch } from './ToggleSwitch';
-import { PanelDispositivos } from './PanelDispositivos';
-import { ModalPreautorizarDispositivo } from './ModalPreautorizarDispositivo';
 import { PanelReporteIntegracion } from './PanelReporteIntegracion';
 import { URL_RTDB_NEGOCIOS, URL_RTDB_CENTRAL } from '../persistencia/conexion-rtdb';
 
 interface PropsPanelFichaNegocio {
   negocio: NegocioRTDB;
   categoriasDisponibles: readonly string[];
-  dispositivos: Record<string, DispositivoVinculado>;
-  cargandoDispositivos: boolean;
   guardando: boolean;
   onVolver: () => void;
   onActualizar: (idNegocio: string, datos: DatosFichaNegocio) => Promise<void>;
   onEliminar: (categoria: string, id: string, codigo: string) => Promise<void>;
   onForzarSincronizacionCentral: (idNegocio: string) => Promise<void>;
-  onActualizarPoliticas: (politicas: PoliticaDispositivos) => Promise<void>;
-  onConmutarEstadoDispositivo: (deviceId: string, estadoActual: 'activo' | 'pendiente' | 'bloqueado') => Promise<void>;
-  onDesvincularDispositivo: (deviceId: string) => Promise<void>;
-  onPreautorizarDispositivo: (dispositivo: DispositivoVinculado) => Promise<void>;
-  onRefrescarDispositivos: () => void;
   onNotificar: (mensaje: string, tipo?: 'exito' | 'error') => void;
 }
 
 export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
   negocio,
   categoriasDisponibles,
-  dispositivos,
-  cargandoDispositivos,
   guardando,
   onVolver,
   onActualizar,
   onEliminar,
   onForzarSincronizacionCentral,
-  onActualizarPoliticas,
-  onConmutarEstadoDispositivo,
-  onDesvincularDispositivo,
-  onPreautorizarDispositivo,
-  onRefrescarDispositivos,
   onNotificar,
 }) => {
-  const [subpestana, setSubpestana] = useState<'GENERAL' | 'DISPOSITIVOS' | 'CENTRAL' | 'REPORTE_APP'>('GENERAL');
-  const [modalPreautorizar, setModalPreautorizar] = useState(false);
+  const [subpestana, setSubpestana] = useState<'GENERAL' | 'CENTRAL' | 'REPORTE_APP'>('GENERAL');
 
   // Form states
   const [nombre, setNombre] = useState(negocio.nombre || '');
@@ -67,13 +48,6 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
   const [whatsapp, setWhatsapp] = useState(negocio.whatsapp || '');
   const [celular, setCelular] = useState(negocio.celular || '');
   const [correo, setCorreo] = useState(negocio.correo || '');
-  const [politicas, setPoliticas] = useState<PoliticaDispositivos>(
-    negocio.politicas_dispositivos || {
-      permitir_navegador_web: true,
-      permitir_dispositivos_genericos: true,
-      validar_hardware_estricto: false,
-    }
-  );
 
   useEffect(() => {
     setNombre(negocio.nombre || '');
@@ -82,16 +56,13 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
     setCodigo(negocio.codigo || '');
     setLimite(String(negocio.limite || 3));
     setModulosBloqueados(negocio.bloqueados || {});
-    setPerfiles(negocio.perfiles?.length ? [...negocio.perfiles] : ['Administrador', 'Cajero', 'Comandero', 'Cocinero']);
+    setPerfiles(negocio.perfiles?.length ? [...negocio.perfiles] : ['Administrador', 'Operador', 'Supervisor']);
     setDireccion(negocio.direccion || '');
     setInstagram(negocio.instagram || '');
     setFacebook(negocio.facebook || '');
     setWhatsapp(negocio.whatsapp || '');
     setCelular(negocio.celular || '');
     setCorreo(negocio.correo || '');
-    if (negocio.politicas_dispositivos) {
-      setPoliticas(negocio.politicas_dispositivos);
-    }
   }, [negocio]);
 
   const alternarBloqueoModulo = (modulo: string) => {
@@ -131,7 +102,6 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
       limite: parseInt(limite, 10) || 3,
       bloqueados: modulosBloqueados,
       perfiles,
-      politicas_dispositivos: politicas,
       direccion: direccion.trim(),
       instagram: instagram.trim(),
       facebook: facebook.trim(),
@@ -159,32 +129,44 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
             </svg>
             Volver al Directorio
           </button>
-          <div className="flex justify-between items-center flex-wrap gap-4">
-            <h1 className="text-3xl font-black text-white">{nombre || negocio.nombre}</h1>
-            <div className="flex items-center gap-3">
-              <span className="text-xs uppercase font-bold text-slate-400">
-                {activo ? 'Operativo' : 'Desactivado'}
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-mono uppercase tracking-widest text-cyan-500 font-bold">
+                {negocio.categoria || categoria}
               </span>
-              <ToggleSwitch
-                id="switch-activo-panel"
-                enabled={activo}
-                onChange={() => setActivo(!activo)}
-                colorActivo="verde"
-              />
+              <h1 className="text-3xl font-black text-white">{negocio.nombre}</h1>
+              <p className="text-slate-400 text-xs font-mono mt-1">ID Canónico: {negocio.id}</p>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                id="boton-guardar-panel"
+                type="button"
+                onClick={handleActualizar}
+                disabled={guardando}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs uppercase tracking-wider px-5 py-2.5 rounded-xl shadow-lg transition-all cursor-pointer flex items-center gap-2"
+              >
+                {guardando ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Guardar Cambios
+                  </>
+                )}
+              </button>
             </div>
           </div>
-          <p className="text-slate-400 mt-2 text-xs font-mono">
-            Ruta Negocio:{' '}
-            <span className="text-cyan-400 font-bold">
-              /{categoria}/{negocio.id}
-            </span>{' '}
-            | Acceso:{' '}
-            <span className="text-emerald-400 font-bold">{codigo}</span>
-          </p>
         </div>
 
-        {/* NAVEGACIÓN ENTRE SUBPESTAÑAS */}
-        <div id="subpestanas-panel" className="flex border-b border-slate-800 mb-6 gap-2 flex-wrap">
+        {/* Subpestañas del Negocio */}
+        <div id="subpestanas-panel-negocio" className="flex border-b border-slate-800 mb-6 gap-2">
           <button
             id="pestana-datos-generales"
             type="button"
@@ -196,21 +178,6 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
             }`}
           >
             Configuración General
-          </button>
-          <button
-            id="pestana-dispositivos"
-            type="button"
-            onClick={() => setSubpestana('DISPOSITIVOS')}
-            className={`px-4 py-2.5 text-xs font-bold uppercase tracking-wider border-b-2 transition-colors cursor-pointer flex items-center gap-2 ${
-              subpestana === 'DISPOSITIVOS'
-                ? 'border-emerald-500 text-emerald-400'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Dispositivos y Políticas
-            <span className="bg-slate-800 text-[10px] px-2 py-0.5 rounded-full font-mono">
-              {Object.keys(dispositivos).length}
-            </span>
           </button>
           <button
             id="pestana-unidad-central"
@@ -250,7 +217,7 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                 type="text"
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 font-bold text-lg"
+                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 text-lg font-bold"
               />
             </div>
 
@@ -262,7 +229,7 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                 id="select-categoria-panel"
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-cyan-500 font-bold"
+                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500"
               >
                 {categoriasDisponibles.map((cat) => (
                   <option key={cat} value={cat}>
@@ -270,30 +237,38 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                   </option>
                 ))}
               </select>
-              {categoria !== negocio.categoria ? (
-                <p className="text-xs text-amber-400 mt-2">
-                  ⚠ Al actualizar, el negocio se moverá atómicamente de /{negocio.categoria} a /{categoria}.
-                </p>
-              ) : null}
             </div>
 
             <div id="bloque-acceso-panel" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6 flex items-center gap-2">
-                <span className="w-6 h-px bg-slate-700"></span> Bloque A — Acceso
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                <span className="w-6 h-px bg-slate-700"></span> Bloque A — Acceso y Conexión
               </h3>
 
-              <div className="grid sm:grid-cols-2 gap-6">
+              <div className="flex items-center justify-between p-4 bg-slate-950 rounded-lg border border-slate-800 mb-6">
+                <div>
+                  <span className="font-semibold text-slate-200">Estado del Negocio</span>
+                  <p className="text-xs text-slate-500">Habilitar o suspender acceso operativo general.</p>
+                </div>
+                <ToggleSwitch
+                  id="switch-activo-panel"
+                  enabled={activo}
+                  onChange={() => setActivo(!activo)}
+                  colorActivo="verde"
+                />
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="input-codigo-acceso-panel" className="block text-sm font-semibold text-slate-400 mb-1">
-                    Código de Acceso (Único)
+                    Código de Acceso Único
                   </label>
-                  <p className="text-xs text-slate-500 mb-2">Indexado en /codigo_acceso.</p>
+                  <p className="text-xs text-slate-500 mb-2">Llave exclusiva para terminales operativas.</p>
                   <input
                     id="input-codigo-acceso-panel"
                     type="text"
                     value={codigo}
-                    onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s+/g, ''))}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 font-mono uppercase font-bold tracking-wider"
+                    onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                    className="w-full bg-slate-950 border border-slate-700 text-cyan-400 rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 font-mono font-bold tracking-wider"
                   />
                 </div>
                 <div>
@@ -360,7 +335,8 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                     <button
                       type="button"
                       onClick={() => eliminarPerfil(perfil)}
-                      className="text-slate-500 hover:text-red-400 font-bold ml-1 cursor-pointer"
+                      className="text-slate-500 hover:text-red-400 transition-colors cursor-pointer"
+                      title="Eliminar perfil"
                     >
                       ✕
                     </button>
@@ -372,6 +348,7 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                 <input
                   id="input-nuevo-perfil-panel"
                   type="text"
+                  placeholder="Agregar nuevo perfil (ej: Repartidor)..."
                   value={nuevoPerfilTexto}
                   onChange={(e) => setNuevoPerfilTexto(e.target.value)}
                   onKeyDown={(e) => {
@@ -380,120 +357,119 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
                       agregarPerfil();
                     }
                   }}
-                  placeholder="Nuevo perfil"
-                  className="flex-1 bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                  className="flex-1 bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-cyan-500"
                 />
                 <button
                   id="boton-agregar-perfil-panel"
                   type="button"
                   onClick={agregarPerfil}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2.5 rounded-lg text-sm font-bold cursor-pointer"
+                  className="bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold uppercase tracking-wider px-4 py-2 rounded-lg transition-colors cursor-pointer"
                 >
                   Agregar
                 </button>
               </div>
             </div>
 
-            <div id="bloque-contacto-panel" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg space-y-4">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-2 flex items-center gap-2">
-                <span className="w-6 h-px bg-slate-700"></span> Datos de Contacto
+            <div id="bloque-contacto-panel" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                <span className="w-6 h-px bg-slate-700"></span> Bloque D — Contacto y Redes
               </h3>
 
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label htmlFor="input-instagram-panel" className="block text-xs font-bold text-slate-400 mb-1">
-                    Instagram
+                  <label htmlFor="input-direccion-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                    Dirección Comercial
                   </label>
                   <input
-                    id="input-instagram-panel"
+                    id="input-direccion-panel"
                     type="text"
-                    value={instagram}
-                    onChange={(e) => setInstagram(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
+                    value={direccion}
+                    onChange={(e) => setDireccion(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
                   />
                 </div>
-                <div>
-                  <label htmlFor="input-facebook-panel" className="block text-xs font-bold text-slate-400 mb-1">
-                    Facebook
-                  </label>
-                  <input
-                    id="input-facebook-panel"
-                    type="text"
-                    value={facebook}
-                    onChange={(e) => setFacebook(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-                  />
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="input-instagram-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                      Instagram
+                    </label>
+                    <input
+                      id="input-instagram-panel"
+                      type="text"
+                      value={instagram}
+                      onChange={(e) => setInstagram(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="input-facebook-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                      Facebook
+                    </label>
+                    <input
+                      id="input-facebook-panel"
+                      type="text"
+                      value={facebook}
+                      onChange={(e) => setFacebook(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label htmlFor="input-whatsapp-panel" className="block text-xs font-bold text-slate-400 mb-1">
-                    WhatsApp
-                  </label>
-                  <input
-                    id="input-whatsapp-panel"
-                    type="text"
-                    value={whatsapp}
-                    onChange={(e) => setWhatsapp(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="input-celular-panel" className="block text-xs font-bold text-slate-400 mb-1">
-                    Número celular
-                  </label>
-                  <input
-                    id="input-celular-panel"
-                    type="text"
-                    value={celular}
-                    onChange={(e) => setCelular(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-                  />
+
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <label htmlFor="input-whatsapp-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                      WhatsApp
+                    </label>
+                    <input
+                      id="input-whatsapp-panel"
+                      type="text"
+                      value={whatsapp}
+                      onChange={(e) => setWhatsapp(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="input-celular-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                      Celular
+                    </label>
+                    <input
+                      id="input-celular-panel"
+                      type="text"
+                      value={celular}
+                      onChange={(e) => setCelular(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="input-correo-panel" className="block text-xs font-semibold text-slate-400 mb-1">
+                      Correo Electrónico
+                    </label>
+                    <input
+                      id="input-correo-panel"
+                      type="email"
+                      value={correo}
+                      onChange={(e) => setCorreo(e.target.value)}
+                      className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-cyan-500"
+                    />
+                  </div>
                 </div>
               </div>
+            </div>
 
+            {/* ZONA DE PELIGRO: RETIRO DEFINITIVO */}
+            <div id="bloque-zona-peligro-panel" className="bg-red-950/20 border border-red-900/40 p-6 rounded-xl shadow-lg flex items-center justify-between">
               <div>
-                <label htmlFor="input-correo-panel" className="block text-xs font-bold text-slate-400 mb-1">
-                  Correo electrónico
-                </label>
-                <input
-                  id="input-correo-panel"
-                  type="email"
-                  value={correo}
-                  onChange={(e) => setCorreo(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-cyan-500"
-                />
+                <h4 className="text-sm font-bold text-red-400 uppercase tracking-wider">Retirar Negocio de la Matriz</h4>
+                <p className="text-xs text-slate-400 mt-1">
+                  Elimina el nodo operativo y revoca el código de acceso en el directorio central.
+                </p>
               </div>
-            </div>
-
-            <div id="bloque-direccion-panel" className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg">
-              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-2">
-                <span className="w-6 h-px bg-slate-700"></span> Dirección
-              </h3>
-              <input
-                id="input-direccion-panel"
-                type="text"
-                value={direccion}
-                onChange={(e) => setDireccion(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-700 text-white rounded-lg px-4 py-3 focus:outline-none focus:border-cyan-500 text-sm"
-              />
-            </div>
-
-            <div className="flex gap-4">
               <button
-                id="boton-actualizar-en-matriz"
-                type="button"
-                onClick={handleActualizar}
-                disabled={guardando}
-                className="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-black uppercase tracking-widest py-4 rounded-xl shadow-lg shadow-cyan-500/20 transition-all active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-              >
-                {guardando ? 'ACTUALIZANDO RTDB...' : 'ACTUALIZAR EN MATRIZ'}
-              </button>
-
-              <button
-                id="boton-retirar-de-matriz"
+                id="boton-eliminar-negocio-panel"
                 type="button"
                 onClick={() => onEliminar(negocio.categoria || categoria, negocio.id, negocio.codigo)}
-                disabled={guardando}
-                className="bg-slate-900 hover:bg-red-950/40 border border-red-800 text-red-400 px-6 py-4 rounded-xl font-bold uppercase tracking-wider text-sm transition-all cursor-pointer"
+                className="bg-red-700 hover:bg-red-600 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-lg transition-colors cursor-pointer"
               >
                 Retirar
               </button>
@@ -501,27 +477,7 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
           </div>
         )}
 
-        {/* SUBPESTAÑA 2: DISPOSITIVOS Y POLÍTICAS */}
-        {subpestana === 'DISPOSITIVOS' && (
-          <PanelDispositivos
-            idNegocio={negocio.id}
-            categoria={negocio.categoria || categoria}
-            limiteDispositivos={parseInt(limite, 10) || negocio.limite || 1}
-            dispositivos={dispositivos}
-            cargandoDispositivos={cargandoDispositivos}
-            politicas={politicas}
-            onActualizarPoliticas={async (p) => {
-              setPoliticas(p);
-              await onActualizarPoliticas(p);
-            }}
-            onConmutarEstado={onConmutarEstadoDispositivo}
-            onDesvincular={onDesvincularDispositivo}
-            onAbrirModalPreautorizar={() => setModalPreautorizar(true)}
-            onRefrescar={onRefrescarDispositivos}
-          />
-        )}
-
-        {/* SUBPESTAÑA 3: UNIDAD CENTRAL */}
+        {/* SUBPESTAÑA 2: UNIDAD CENTRAL */}
         {subpestana === 'CENTRAL' && (
           <div id="panel-unidad-central" className="space-y-6">
             <div className="bg-slate-900 border border-slate-800 p-6 rounded-xl shadow-lg space-y-4">
@@ -588,7 +544,7 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
           </div>
         )}
 
-        {/* SUBPESTAÑA 4: REPORTE TÉCNICO E INTEGRACIÓN APP */}
+        {/* SUBPESTAÑA REPORTE TÉCNICO E INTEGRACIÓN APP */}
         {subpestana === 'REPORTE_APP' && (
           <PanelReporteIntegracion
             categoriaSeleccionada={negocio.categoria || categoria}
@@ -599,18 +555,6 @@ export const PanelFichaNegocio: React.FC<PropsPanelFichaNegocio> = ({
           />
         )}
       </div>
-
-      {modalPreautorizar ? (
-        <ModalPreautorizarDispositivo
-          idNegocio={negocio.id}
-          nombreNegocio={negocio.nombre}
-          onCerrar={() => setModalPreautorizar(false)}
-          onGuardar={async (datos) => {
-            await onPreautorizarDispositivo(datos);
-            setModalPreautorizar(false);
-          }}
-        />
-      ) : null}
     </div>
   );
 };

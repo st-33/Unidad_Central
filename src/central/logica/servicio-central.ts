@@ -91,7 +91,7 @@ export const CAPACIDADES_BASE: readonly DefinicionCapacidad[] = [
     id: 'cap-mostrador',
     clave: 'mostrador',
     nombre: 'Atención en mostrador',
-    descripcion: 'Venta y atención presencial en barra o mostrador',
+    descripcion: 'Venta y atención presencial en mostrador o punto de despacho',
     disponible: true,
   },
   {
